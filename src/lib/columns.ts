@@ -5,9 +5,8 @@
 
 export type FieldKey =
   | "title"
+  | "author"
   | "published_at"
-  | "url"
-  | "topic"
   | "post_type"
   | "views"
   | "new_subscribers"
@@ -17,9 +16,8 @@ export type FieldKey =
 
 export const FIELD_ORDER: FieldKey[] = [
   "title",
-  "url",
+  "author",
   "published_at",
-  "topic",
   "post_type",
   "views",
   "new_subscribers",
@@ -30,9 +28,8 @@ export const FIELD_ORDER: FieldKey[] = [
 
 export const FIELD_LABELS: Record<FieldKey, string> = {
   title: "Título del post",
-  url: "URL",
+  author: "Autor / subtítulo",
   published_at: "Fecha de publicación",
-  topic: "Tema",
   post_type: "Tipo de post",
   views: "Views",
   new_subscribers: "Nuevos suscriptores",
@@ -42,11 +39,14 @@ export const FIELD_LABELS: Record<FieldKey, string> = {
 };
 
 // Campos sin los que no se puede identificar un post de forma estable.
-export const REQUIRED_FIELDS: FieldKey[] = ["title", "url"];
+export const REQUIRED_FIELDS: FieldKey[] = ["title"];
 
+// En el export de Substack que usamos, "post_id" trae el título real y la
+// columna "title" trae en realidad el subtítulo o el nombre del autor. Por
+// eso las sugerencias automáticas están invertidas a propósito.
 const ALIASES: Record<FieldKey, string[]> = {
-  title: ["titulo", "titulo del post", "title", "post title", "nombre del post", "nombre", "post"],
-  url: ["url", "link", "enlace", "post url", "direccion", "direccion url"],
+  title: ["titulo", "titulo del post", "nombre del post", "post id", "id del post"],
+  author: ["autor", "author", "subtitulo", "subtitulo del post", "subtitle", "nombre del autor", "title", "post title"],
   published_at: [
     "fecha",
     "fecha de publicacion",
@@ -54,10 +54,10 @@ const ALIASES: Record<FieldKey, string[]> = {
     "publish date",
     "published date",
     "date",
+    "post date",
   ],
-  topic: ["tema", "topic", "categoria", "category"],
   post_type: ["tipo", "tipo de post", "post type", "type", "formato"],
-  views: ["views", "vistas", "visualizaciones", "pageviews", "page views"],
+  views: ["views", "visits", "vistas", "visitas", "visualizaciones", "pageviews", "page views"],
   new_subscribers: [
     "nuevos suscriptores",
     "new subscribers",

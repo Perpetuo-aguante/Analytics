@@ -11,11 +11,12 @@ create extension if not exists pgcrypto;
 -- ─────────────────────────────────────────────
 create table posts (
   id uuid primary key default gen_random_uuid(),
-  slug text not null unique,        -- clave natural estable, derivada de la URL
-  url text not null,
+  slug text not null unique,        -- clave natural estable, derivada del título
+  url text,                         -- opcional: no todos los exports de Substack la traen
   title text not null,
+  author text,                      -- autor o subtítulo del post
   published_at date,
-  topic text,                       -- "tema"
+  topic text,                       -- "tema" (histórico; ya no se pide al cargar)
   post_type text,                   -- "tipo de post"
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -53,6 +54,7 @@ select distinct on (ms.post_id)
   p.slug,
   p.url,
   p.title,
+  p.author,
   p.published_at,
   p.topic,
   p.post_type,

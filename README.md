@@ -13,7 +13,7 @@ Web app de analítica para la publicación de Substack **Perpetuo**. Next.js (Ap
 
 Ver [`supabase/schema.sql`](./supabase/schema.sql). Resumen:
 
-- `posts`: identidad estable de cada post (slug derivado de la URL).
+- `posts`: identidad estable de cada post (slug derivado del título; la URL es opcional).
 - `metric_snapshots`: una fila nueva por post en cada carga semanal — nunca se sobrescribe el histórico.
 - `current_metrics` (vista): el snapshot más reciente de cada post.
 

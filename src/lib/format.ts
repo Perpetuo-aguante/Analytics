@@ -76,12 +76,19 @@ export function parseIntValue(value: unknown): number | null {
 }
 
 // Tasas (open rate, CTOR, engagement): acepta "45%", "45", "0.45" y las
-// normaliza siempre a fracción (0.45). Si el valor es mayor a 1 se asume
-// que viene como porcentaje entero y se divide entre 100.
+// normaliza siempre a fracción (0.45).
+// - Si el texto trae "%", ese signo es la fuente de verdad: siempre se
+//   divide entre 100 ("45%" -> 0.45, y también "0.4%" -> 0.004; antes,
+//   un valor con "%" menor o igual a 1 se dejaba tal cual y quedaba 100x
+//   inflado, ej. "0.4%" se mostraba como 40% en vez de 0.4%).
+// - Sin "%", no hay forma de distinguir "0.45" (ya es fracción) de "45"
+//   (viene como porcentaje entero), así que ahí sí asumimos por magnitud:
+//   mayor a 1 se divide entre 100.
 export function parseRateValue(value: unknown): number | null {
   if (value == null || value === "") return null;
-  const text = String(value).trim().replace("%", "");
-  const num = Number(text);
+  const raw = String(value).trim();
+  const hasPercentSign = raw.includes("%");
+  const num = Number(raw.replace("%", ""));
   if (!Number.isFinite(num)) return null;
-  return num > 1 ? num / 100 : num;
+  return hasPercentSign || num > 1 ? num / 100 : num;
 }

@@ -11,7 +11,7 @@ import {
 } from "@/lib/session";
 import { parseUploadedFile } from "@/lib/parse";
 import { suggestMapping, type FieldKey } from "@/lib/columns";
-import { cellToString, deriveSlug, parseDateValue, parseIntValue, parseRateValue } from "@/lib/format";
+import { cellToString, parseDateValue, parseIntValue, parseRateValue, slugify } from "@/lib/format";
 import { createAdminClient } from "@/lib/supabase/server";
 
 export type LoginState = { error: string | null };
@@ -92,8 +92,8 @@ export async function commitImport(input: {
     await requireSession();
     const { rows, mapping, snapshotDate } = input;
 
-    if (!mapping.title || !mapping.url) {
-      return { data: null, error: "Título y URL son obligatorios en el mapeo." };
+    if (!mapping.title) {
+      return { data: null, error: "Título es obligatorio en el mapeo." };
     }
     if (!snapshotDate) {
       return { data: null, error: "Falta la fecha del snapshot." };
@@ -101,9 +101,8 @@ export async function commitImport(input: {
 
     type PostRow = {
       slug: string;
-      url: string;
       title: string;
-      topic?: string | null;
+      author?: string | null;
       post_type?: string | null;
       published_at?: string | null;
     };
@@ -113,12 +112,11 @@ export async function commitImport(input: {
 
     for (const row of rows) {
       const title = cellToString(row[mapping.title]);
-      const url = cellToString(row[mapping.url]);
-      if (!title || !url) continue; // fila sin identidad de post: se ignora
+      if (!title) continue; // fila sin identidad de post: se ignora
 
-      const slug = deriveSlug(url, title);
-      const post: PostRow = { slug, url, title };
-      if (mapping.topic) post.topic = cellToString(row[mapping.topic]);
+      const slug = slugify(title);
+      const post: PostRow = { slug, title };
+      if (mapping.author) post.author = cellToString(row[mapping.author]);
       if (mapping.post_type) post.post_type = cellToString(row[mapping.post_type]);
       if (mapping.published_at) post.published_at = parseDateValue(row[mapping.published_at]);
       postsBySlug.set(slug, post);
@@ -136,7 +134,7 @@ export async function commitImport(input: {
     }
 
     if (postsBySlug.size === 0) {
-      return { data: null, error: "Ninguna fila tiene título y URL válidos." };
+      return { data: null, error: "Ninguna fila tiene título válido." };
     }
 
     const supabase = createAdminClient();
@@ -185,5 +183,87 @@ export async function commitImport(input: {
     };
   } catch (err) {
     return { data: null, error: err instanceof Error ? err.message : "No se pudo importar el archivo." };
+  }
+}
+
+export type UploadBatch = {
+  snapshotDate: string;
+  postCount: number;
+};
+
+// Una "carga" es todo lo que se subió con la misma fecha de snapshot: no
+// guardamos un id de carga aparte, así que agrupamos metric_snapshots por
+// snapshot_date para reconstruirla.
+export async function listUploads(): Promise<{ data: UploadBatch[] | null; error: string | null }> {
+  try {
+    await requireSession();
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from("metric_snapshots")
+      .select("snapshot_date")
+      .order("snapshot_date", { ascending: false });
+    if (error) return { data: null, error: error.message };
+
+    const counts = new Map<string, number>();
+    for (const row of data ?? []) {
+      const date = row.snapshot_date as string;
+      counts.set(date, (counts.get(date) ?? 0) + 1);
+    }
+    const batches = Array.from(counts.entries()).map(([snapshotDate, postCount]) => ({
+      snapshotDate,
+      postCount,
+    }));
+    return { data: batches, error: null };
+  } catch (err) {
+    return { data: null, error: err instanceof Error ? err.message : "No se pudo leer las cargas." };
+  }
+}
+
+export type DeleteUploadSummary = {
+  snapshotsEliminados: number;
+  postsEliminados: number;
+};
+
+export async function deleteUpload(
+  snapshotDate: string
+): Promise<{ data: DeleteUploadSummary | null; error: string | null }> {
+  try {
+    await requireSession();
+    const supabase = createAdminClient();
+
+    const { data: deleted, error: deleteError } = await supabase
+      .from("metric_snapshots")
+      .delete()
+      .eq("snapshot_date", snapshotDate)
+      .select("post_id");
+    if (deleteError) return { data: null, error: deleteError.message };
+
+    const affectedPostIds = Array.from(new Set((deleted ?? []).map((r) => r.post_id as string)));
+    let postsEliminados = 0;
+    if (affectedPostIds.length > 0) {
+      const { data: remaining, error: remainingError } = await supabase
+        .from("metric_snapshots")
+        .select("post_id")
+        .in("post_id", affectedPostIds);
+      if (remainingError) return { data: null, error: remainingError.message };
+
+      const stillHaveSnapshots = new Set((remaining ?? []).map((r) => r.post_id as string));
+      const orphanIds = affectedPostIds.filter((id) => !stillHaveSnapshots.has(id));
+      if (orphanIds.length > 0) {
+        const { error: orphanError } = await supabase.from("posts").delete().in("id", orphanIds);
+        if (orphanError) return { data: null, error: orphanError.message };
+        postsEliminados = orphanIds.length;
+      }
+    }
+
+    revalidatePath("/");
+    revalidatePath("/rankings");
+
+    return {
+      data: { snapshotsEliminados: deleted?.length ?? 0, postsEliminados },
+      error: null,
+    };
+  } catch (err) {
+    return { data: null, error: err instanceof Error ? err.message : "No se pudo eliminar la carga." };
   }
 }
