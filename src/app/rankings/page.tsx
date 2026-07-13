@@ -7,8 +7,12 @@ import type { CurrentMetric } from "@/lib/supabase/types";
 // dejarla fija; queremos que consulte Supabase en cada visita.
 export const dynamic = "force-dynamic";
 
-export default async function RankingsPage() {
-  const { bySubscribers, byViews, byEngagement } = await getLeaderboards();
+type SearchParams = { vista?: string };
+
+export default async function RankingsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  const { vista } = await searchParams;
+  const showAll = vista === "todos";
+  const { bySubscribers, byViews, byEngagement } = await getLeaderboards(showAll ? null : 10);
 
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-16">
@@ -18,10 +22,29 @@ export default async function RankingsPage() {
         <p className="mt-2 text-sm text-muted">Basado en el snapshot más reciente de cada post.</p>
       </header>
 
+      <div className="mb-8 flex gap-2 text-sm">
+        <Link
+          href="/rankings"
+          className={`rounded border px-3 py-1.5 ${
+            showAll ? "border-border text-muted hover:text-foreground" : "border-foreground bg-foreground text-background"
+          }`}
+        >
+          Top 10
+        </Link>
+        <Link
+          href="/rankings?vista=todos"
+          className={`rounded border px-3 py-1.5 ${
+            showAll ? "border-foreground bg-foreground text-background" : "border-border text-muted hover:text-foreground"
+          }`}
+        >
+          Ver todos
+        </Link>
+      </div>
+
       <div className="grid gap-12 sm:grid-cols-3">
-        <Leaderboard title="Nuevos suscriptores" rows={bySubscribers} metric="new_subscribers" format={formatNumber} />
-        <Leaderboard title="Views" rows={byViews} metric="views" format={formatNumber} />
-        <Leaderboard title="Engagement" rows={byEngagement} metric="engagement" format={formatPercent} />
+        <Leaderboard title="Nuevos suscriptores" rows={bySubscribers} metric="new_subscribers" format={formatNumber} scroll={showAll} />
+        <Leaderboard title="Views" rows={byViews} metric="views" format={formatNumber} scroll={showAll} />
+        <Leaderboard title="Engagement" rows={byEngagement} metric="engagement" format={formatPercent} scroll={showAll} />
       </div>
     </main>
   );
@@ -32,16 +55,18 @@ function Leaderboard({
   rows,
   metric,
   format,
+  scroll,
 }: {
   title: string;
   rows: CurrentMetric[];
   metric: keyof CurrentMetric;
   format: (value: number | null | undefined) => string;
+  scroll?: boolean;
 }) {
   return (
     <section>
       <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-muted">{title}</h2>
-      <ol className="space-y-3">
+      <ol className={`space-y-3 ${scroll ? "max-h-[32rem] overflow-y-auto pr-2" : ""}`}>
         {rows.map((row, i) => (
           <li key={row.post_id} className="flex items-baseline justify-between gap-3">
             <span className="text-sm">

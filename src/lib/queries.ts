@@ -29,7 +29,8 @@ export async function getFilterOptions(): Promise<{ topics: string[]; postTypes:
   return { topics: Array.from(topics).sort(), postTypes: Array.from(postTypes).sort() };
 }
 
-export async function getLeaderboards(): Promise<{
+// limit: cuántos posts devolver por métrica. null = todos (sin recortar).
+export async function getLeaderboards(limit: number | null = 10): Promise<{
   bySubscribers: CurrentMetric[];
   byViews: CurrentMetric[];
   byEngagement: CurrentMetric[];
@@ -39,11 +40,12 @@ export async function getLeaderboards(): Promise<{
   if (error) throw new Error(error.message);
   const rows = (data ?? []) as CurrentMetric[];
 
-  const top = (key: keyof CurrentMetric) =>
-    [...rows]
+  const top = (key: keyof CurrentMetric) => {
+    const sorted = [...rows]
       .filter((r) => r[key] != null)
-      .sort((a, b) => (b[key] as number) - (a[key] as number))
-      .slice(0, 10);
+      .sort((a, b) => (b[key] as number) - (a[key] as number));
+    return limit == null ? sorted : sorted.slice(0, limit);
+  };
 
   return {
     bySubscribers: top("new_subscribers"),

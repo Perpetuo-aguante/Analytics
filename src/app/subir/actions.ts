@@ -185,3 +185,85 @@ export async function commitImport(input: {
     return { data: null, error: err instanceof Error ? err.message : "No se pudo importar el archivo." };
   }
 }
+
+export type UploadBatch = {
+  snapshotDate: string;
+  postCount: number;
+};
+
+// Una "carga" es todo lo que se subió con la misma fecha de snapshot: no
+// guardamos un id de carga aparte, así que agrupamos metric_snapshots por
+// snapshot_date para reconstruirla.
+export async function listUploads(): Promise<{ data: UploadBatch[] | null; error: string | null }> {
+  try {
+    await requireSession();
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from("metric_snapshots")
+      .select("snapshot_date")
+      .order("snapshot_date", { ascending: false });
+    if (error) return { data: null, error: error.message };
+
+    const counts = new Map<string, number>();
+    for (const row of data ?? []) {
+      const date = row.snapshot_date as string;
+      counts.set(date, (counts.get(date) ?? 0) + 1);
+    }
+    const batches = Array.from(counts.entries()).map(([snapshotDate, postCount]) => ({
+      snapshotDate,
+      postCount,
+    }));
+    return { data: batches, error: null };
+  } catch (err) {
+    return { data: null, error: err instanceof Error ? err.message : "No se pudo leer las cargas." };
+  }
+}
+
+export type DeleteUploadSummary = {
+  snapshotsEliminados: number;
+  postsEliminados: number;
+};
+
+export async function deleteUpload(
+  snapshotDate: string
+): Promise<{ data: DeleteUploadSummary | null; error: string | null }> {
+  try {
+    await requireSession();
+    const supabase = createAdminClient();
+
+    const { data: deleted, error: deleteError } = await supabase
+      .from("metric_snapshots")
+      .delete()
+      .eq("snapshot_date", snapshotDate)
+      .select("post_id");
+    if (deleteError) return { data: null, error: deleteError.message };
+
+    const affectedPostIds = Array.from(new Set((deleted ?? []).map((r) => r.post_id as string)));
+    let postsEliminados = 0;
+    if (affectedPostIds.length > 0) {
+      const { data: remaining, error: remainingError } = await supabase
+        .from("metric_snapshots")
+        .select("post_id")
+        .in("post_id", affectedPostIds);
+      if (remainingError) return { data: null, error: remainingError.message };
+
+      const stillHaveSnapshots = new Set((remaining ?? []).map((r) => r.post_id as string));
+      const orphanIds = affectedPostIds.filter((id) => !stillHaveSnapshots.has(id));
+      if (orphanIds.length > 0) {
+        const { error: orphanError } = await supabase.from("posts").delete().in("id", orphanIds);
+        if (orphanError) return { data: null, error: orphanError.message };
+        postsEliminados = orphanIds.length;
+      }
+    }
+
+    revalidatePath("/");
+    revalidatePath("/rankings");
+
+    return {
+      data: { snapshotsEliminados: deleted?.length ?? 0, postsEliminados },
+      error: null,
+    };
+  } catch (err) {
+    return { data: null, error: err instanceof Error ? err.message : "No se pudo eliminar la carga." };
+  }
+}

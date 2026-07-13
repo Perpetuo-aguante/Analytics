@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { isValidSessionCookieValue, SESSION_COOKIE_NAME } from "@/lib/session";
 import { LoginForm } from "./login-form";
 import { Uploader } from "./uploader";
+import { ManageUploads } from "./manage-uploads";
 import { logout } from "./actions";
 
 export default async function SubirPage() {
@@ -26,6 +27,8 @@ export default async function SubirPage() {
         </form>
       </div>
       <Uploader />
+      <hr className="my-12 border-border" />
+      <ManageUploads />
     </main>
   );
 }
