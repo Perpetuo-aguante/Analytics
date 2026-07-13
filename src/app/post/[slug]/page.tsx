@@ -17,11 +17,17 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
         ← Volver
       </Link>
       <h1 className="mt-4 font-serif text-3xl font-semibold">{post.title}</h1>
+      {post.author && <p className="mt-1 text-sm text-muted">{post.author}</p>}
       <p className="mt-2 text-sm text-muted">
-        {post.topic ?? "—"} · {post.post_type ?? "—"} · {post.published_at ?? "sin fecha"} ·{" "}
-        <a href={post.url} target="_blank" rel="noreferrer" className="underline">
-          ver en Substack
-        </a>
+        {post.topic ?? "—"} · {post.post_type ?? "—"} · {post.published_at ?? "sin fecha"}
+        {post.url && (
+          <>
+            {" · "}
+            <a href={post.url} target="_blank" rel="noreferrer" className="underline">
+              ver en Substack
+            </a>
+          </>
+        )}
       </p>
 
       {snapshots.length === 0 ? (

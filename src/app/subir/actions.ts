@@ -11,7 +11,7 @@ import {
 } from "@/lib/session";
 import { parseUploadedFile } from "@/lib/parse";
 import { suggestMapping, type FieldKey } from "@/lib/columns";
-import { cellToString, deriveSlug, parseDateValue, parseIntValue, parseRateValue } from "@/lib/format";
+import { cellToString, parseDateValue, parseIntValue, parseRateValue, slugify } from "@/lib/format";
 import { createAdminClient } from "@/lib/supabase/server";
 
 export type LoginState = { error: string | null };
@@ -92,8 +92,8 @@ export async function commitImport(input: {
     await requireSession();
     const { rows, mapping, snapshotDate } = input;
 
-    if (!mapping.title || !mapping.url) {
-      return { data: null, error: "Título y URL son obligatorios en el mapeo." };
+    if (!mapping.title) {
+      return { data: null, error: "Título es obligatorio en el mapeo." };
     }
     if (!snapshotDate) {
       return { data: null, error: "Falta la fecha del snapshot." };
@@ -101,9 +101,8 @@ export async function commitImport(input: {
 
     type PostRow = {
       slug: string;
-      url: string;
       title: string;
-      topic?: string | null;
+      author?: string | null;
       post_type?: string | null;
       published_at?: string | null;
     };
@@ -113,12 +112,11 @@ export async function commitImport(input: {
 
     for (const row of rows) {
       const title = cellToString(row[mapping.title]);
-      const url = cellToString(row[mapping.url]);
-      if (!title || !url) continue; // fila sin identidad de post: se ignora
+      if (!title) continue; // fila sin identidad de post: se ignora
 
-      const slug = deriveSlug(url, title);
-      const post: PostRow = { slug, url, title };
-      if (mapping.topic) post.topic = cellToString(row[mapping.topic]);
+      const slug = slugify(title);
+      const post: PostRow = { slug, title };
+      if (mapping.author) post.author = cellToString(row[mapping.author]);
       if (mapping.post_type) post.post_type = cellToString(row[mapping.post_type]);
       if (mapping.published_at) post.published_at = parseDateValue(row[mapping.published_at]);
       postsBySlug.set(slug, post);
@@ -136,7 +134,7 @@ export async function commitImport(input: {
     }
 
     if (postsBySlug.size === 0) {
-      return { data: null, error: "Ninguna fila tiene título y URL válidos." };
+      return { data: null, error: "Ninguna fila tiene título válido." };
     }
 
     const supabase = createAdminClient();

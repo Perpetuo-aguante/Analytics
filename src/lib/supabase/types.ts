@@ -1,8 +1,9 @@
 export type Post = {
   id: string;
   slug: string;
-  url: string;
+  url: string | null;
   title: string;
+  author: string | null;
   published_at: string | null;
   topic: string | null;
   post_type: string | null;
@@ -26,8 +27,9 @@ export type MetricSnapshot = {
 export type CurrentMetric = {
   post_id: string;
   slug: string;
-  url: string;
+  url: string | null;
   title: string;
+  author: string | null;
   published_at: string | null;
   topic: string | null;
   post_type: string | null;

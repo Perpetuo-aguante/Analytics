@@ -53,6 +53,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             <Link href={`/post/${post.slug}`} className="text-lg font-medium hover:underline">
               {post.title}
             </Link>
+            {post.author && <p className="mt-0.5 text-sm text-muted">{post.author}</p>}
             <p className="mt-1 text-sm text-muted">
               {post.topic ?? "—"} · {post.post_type ?? "—"} · {post.published_at ?? "sin fecha"}
             </p>
