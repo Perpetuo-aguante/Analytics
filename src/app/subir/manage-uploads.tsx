@@ -43,14 +43,14 @@ export function ManageUploads() {
         métricas; los posts que solo existían por esa carga también se eliminan.
       </p>
 
-      {error && <p className="mb-4 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+      {error && <p className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
       {uploads == null && !error && <p className="text-sm text-muted">Cargando…</p>}
 
       {uploads && uploads.length === 0 && <p className="text-sm text-muted">Todavía no hay cargas.</p>}
 
       {uploads && uploads.length > 0 && (
-        <ul className="divide-y divide-border rounded border border-border">
+        <ul className="divide-y divide-border rounded-2xl border border-border">
           {uploads.map((upload) => (
             <li key={upload.snapshotDate} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
               <span>
@@ -62,7 +62,7 @@ export function ManageUploads() {
                   <button
                     onClick={() => handleDelete(upload.snapshotDate)}
                     disabled={pending}
-                    className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+                    className="rounded-full bg-red-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
                   >
                     Sí, eliminar
                   </button>
@@ -74,7 +74,7 @@ export function ManageUploads() {
                 <button
                   onClick={() => setConfirming(upload.snapshotDate)}
                   disabled={pending}
-                  className="text-xs text-red-600 underline disabled:opacity-50"
+                  className="rounded-full border border-red-200 px-3 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
                 >
                   Eliminar
                 </button>

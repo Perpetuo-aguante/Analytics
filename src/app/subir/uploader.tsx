@@ -77,7 +77,7 @@ export function Uploader() {
     <div className="space-y-8">
       {!preview && !summary && (
         <div>
-          <label className="block cursor-pointer rounded border border-dashed border-border px-6 py-10 text-center text-sm text-muted hover:border-foreground">
+          <label className="block cursor-pointer rounded-2xl border border-dashed border-border px-6 py-10 text-center text-sm text-muted transition-colors hover:border-accent hover:text-foreground">
             {pending ? "Leyendo archivo…" : "Elige un archivo .xlsx o .csv"}
             <input
               type="file"
@@ -159,11 +159,11 @@ export function Uploader() {
             </p>
           )}
 
-          <div className="flex gap-3">
+          <div className="flex items-center gap-4">
             <button
               onClick={handleConfirm}
               disabled={pending || missingRequired.length > 0}
-              className="rounded bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
+              className="btn-primary text-sm"
             >
               {pending ? "Importando…" : "Confirmar e importar"}
             </button>
@@ -175,12 +175,12 @@ export function Uploader() {
       )}
 
       {summary && (
-        <div className="space-y-4 rounded border border-border px-6 py-6">
+        <div className="space-y-4 rounded-2xl border border-border px-6 py-6">
           <p className="text-sm">
             Listo. {summary.postsCreados} posts nuevos, {summary.postsActualizados} actualizados,{" "}
             {summary.snapshots} snapshots guardados.
           </p>
-          <button onClick={handleReset} className="text-sm underline">
+          <button onClick={handleReset} className="text-sm font-medium text-accent underline underline-offset-2">
             Cargar otro archivo
           </button>
         </div>

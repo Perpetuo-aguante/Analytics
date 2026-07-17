@@ -17,15 +17,11 @@ export function LoginForm() {
           name="password"
           required
           autoFocus
-          className="mt-1 w-full rounded border border-border bg-transparent px-3 py-2 text-foreground outline-none focus:border-foreground"
+          className="mt-1 w-full rounded-full border border-border bg-white/50 px-4 py-2 text-foreground outline-none focus:border-accent"
         />
       </label>
       {state.error && <p className="text-sm text-red-600">{state.error}</p>}
-      <button
-        type="submit"
-        disabled={pending}
-        className="w-full rounded bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
-      >
+      <button type="submit" disabled={pending} className="btn-primary w-full text-sm">
         {pending ? "Verificando…" : "Entrar"}
       </button>
     </form>

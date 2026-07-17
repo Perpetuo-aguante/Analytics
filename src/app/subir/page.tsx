@@ -23,7 +23,9 @@ export default async function SubirPage() {
       <div className="mb-10 flex items-center justify-between">
         <h1 className="font-serif text-2xl font-semibold">Cargar métricas semanales</h1>
         <form action={logout}>
-          <button className="text-sm text-muted underline">Cerrar sesión</button>
+          <button className="rounded-full border border-border px-3 py-1.5 text-sm text-muted hover:border-accent hover:text-foreground">
+            Cerrar sesión
+          </button>
         </form>
       </div>
       <Uploader />

@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import {
   checkPassword,
   createSessionCookieValue,
-  isValidSessionCookieValue,
+  requireSession,
   SESSION_COOKIE_NAME,
   SESSION_MAX_AGE,
 } from "@/lib/session";
@@ -35,14 +35,6 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
 export async function logout() {
   const cookieStore = await cookies();
   cookieStore.delete(SESSION_COOKIE_NAME);
-}
-
-async function requireSession() {
-  const cookieStore = await cookies();
-  const session = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  if (!isValidSessionCookieValue(session)) {
-    throw new Error("Sesión expirada. Vuelve a iniciar sesión.");
-  }
 }
 
 export type ParsePreview = {
