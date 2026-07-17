@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { getLeaderboards } from "@/lib/queries";
+import { getLeaderboards, getLeaderboardsByType } from "@/lib/queries";
 import { formatNumber, formatPercent } from "@/lib/display";
+import { LEADERBOARD_POST_TYPES } from "@/lib/post-types";
 import type { CurrentMetric } from "@/lib/supabase/types";
 
 // Sin esto, Next intentaría generar esta página una sola vez en el build y
@@ -12,7 +13,10 @@ type SearchParams = { vista?: string };
 export default async function RankingsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const { vista } = await searchParams;
   const showAll = vista === "todos";
-  const { bySubscribers, byViews, byEngagement } = await getLeaderboards(showAll ? null : 10);
+  const [{ bySubscribers, byViews, byEngagement }, byType] = await Promise.all([
+    getLeaderboards(showAll ? null : 10),
+    getLeaderboardsByType(showAll ? null : 5),
+  ]);
 
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-16">
@@ -23,20 +27,10 @@ export default async function RankingsPage({ searchParams }: { searchParams: Pro
       </header>
 
       <div className="mb-8 flex gap-2 text-sm">
-        <Link
-          href="/rankings"
-          className={`rounded border px-3 py-1.5 ${
-            showAll ? "border-border text-muted hover:text-foreground" : "border-foreground bg-foreground text-background"
-          }`}
-        >
+        <Link href="/rankings" data-active={!showAll} className="btn-secondary">
           Top 10
         </Link>
-        <Link
-          href="/rankings?vista=todos"
-          className={`rounded border px-3 py-1.5 ${
-            showAll ? "border-foreground bg-foreground text-background" : "border-border text-muted hover:text-foreground"
-          }`}
-        >
+        <Link href="/rankings?vista=todos" data-active={showAll} className="btn-secondary">
           Ver todos
         </Link>
       </div>
@@ -46,6 +40,16 @@ export default async function RankingsPage({ searchParams }: { searchParams: Pro
         <Leaderboard title="Views" rows={byViews} metric="views" format={formatNumber} scroll={showAll} />
         <Leaderboard title="Engagement" rows={byEngagement} metric="engagement" format={formatPercent} scroll={showAll} />
       </div>
+
+      <section className="mt-16">
+        <h2 className="mb-1 font-serif text-xl font-semibold">Ranking por tipo de publicación</h2>
+        <p className="mb-8 text-sm text-muted">Los posts con más views dentro de cada tipo.</p>
+        <div className="grid gap-12 sm:grid-cols-2 lg:grid-cols-3">
+          {LEADERBOARD_POST_TYPES.map((type) => (
+            <Leaderboard key={type} title={type} rows={byType[type]} metric="views" format={formatNumber} scroll={showAll} />
+          ))}
+        </div>
+      </section>
     </main>
   );
 }

@@ -1,5 +1,6 @@
 import { createAnonClient } from "./supabase/server";
 import type { CurrentMetric, MetricSnapshot, Post } from "./supabase/types";
+import { LEADERBOARD_POST_TYPES, matchPostType, type LeaderboardPostType } from "./post-types";
 
 export async function getCurrentMetrics(
   filters: { q?: string; topic?: string; postType?: string } = {}
@@ -52,6 +53,35 @@ export async function getLeaderboards(limit: number | null = 10): Promise<{
     byViews: top("views"),
     byEngagement: top("engagement"),
   };
+}
+
+// Leaderboard agrupado por tipo de post (Ensayo, Cuento, Poema, etc.),
+// ordenado por views dentro de cada grupo. limit: cuántos posts por grupo;
+// null = todos.
+export async function getLeaderboardsByType(
+  limit: number | null = 5
+): Promise<Record<LeaderboardPostType, CurrentMetric[]>> {
+  const supabase = createAnonClient();
+  const { data, error } = await supabase.from("current_metrics").select("*");
+  if (error) throw new Error(error.message);
+  const rows = (data ?? []) as CurrentMetric[];
+
+  const grouped = new Map<LeaderboardPostType, CurrentMetric[]>(
+    LEADERBOARD_POST_TYPES.map((type) => [type, []])
+  );
+  for (const row of rows) {
+    const type = matchPostType(row.post_type);
+    if (type) grouped.get(type)!.push(row);
+  }
+
+  const result = {} as Record<LeaderboardPostType, CurrentMetric[]>;
+  for (const type of LEADERBOARD_POST_TYPES) {
+    const sorted = (grouped.get(type) ?? [])
+      .filter((r) => r.views != null)
+      .sort((a, b) => (b.views as number) - (a.views as number));
+    result[type] = limit == null ? sorted : sorted.slice(0, limit);
+  }
+  return result;
 }
 
 export async function getPostBySlug(slug: string): Promise<Post | null> {

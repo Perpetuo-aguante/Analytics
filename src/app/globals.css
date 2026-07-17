@@ -1,10 +1,13 @@
 @import "tailwindcss";
 
 :root {
-  --background: #faf9f6;
-  --foreground: #1a1a1a;
-  --muted: #6b6b6b;
-  --border: #e2e0da;
+  --background: #f6efe0;
+  --foreground: #2f2a22;
+  --muted: #85795f;
+  --border: #e3d7ba;
+  --accent: #d1592f;
+  --accent-hover: #b8471f;
+  --accent-foreground: #fff8ef;
 }
 
 @theme inline {
@@ -12,7 +15,10 @@
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
   --color-border: var(--border);
-  --font-serif: Georgia, "Times New Roman", serif;
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-foreground: var(--accent-foreground);
+  --font-serif: var(--font-poppins), Georgia, "Times New Roman", serif;
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
@@ -26,4 +32,65 @@ h1,
 h2,
 h3 {
   font-family: var(--font-serif);
+}
+
+/* Botón principal: la llamada a la acción "pop" contra el fondo crema. */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-foreground);
+  font-weight: 600;
+  padding: 0.6rem 1.4rem;
+  box-shadow: 0 4px 14px rgba(209, 89, 47, 0.28);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(209, 89, 47, 0.35);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  box-shadow: none;
+  transform: none;
+}
+
+/* Botón secundario/pill: para toggles y acciones de menor jerarquía. */
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  padding: 0.55rem 1.3rem;
+  font-weight: 500;
+  color: var(--muted);
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.btn-secondary:hover {
+  border-color: var(--accent);
+  color: var(--foreground);
+}
+
+.btn-secondary[data-active="true"] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-foreground);
 }

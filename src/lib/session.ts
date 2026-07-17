@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { cookies } from "next/headers";
 
 // Este módulo usa node:crypto, así que solo se puede importar desde código
 // de servidor (server actions, Server Components) — nunca desde un
@@ -44,4 +45,14 @@ export function checkPassword(password: string): boolean {
   const expected = process.env.UPLOAD_PASSWORD;
   if (!expected) throw new Error("Falta la variable de entorno UPLOAD_PASSWORD.");
   return safeEqual(password, expected);
+}
+
+// Lanza si no hay una sesión de admin válida. Usar al principio de toda
+// server action que escriba datos (cargas, ediciones manuales, etc.).
+export async function requireSession(): Promise<void> {
+  const cookieStore = await cookies();
+  const session = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  if (!isValidSessionCookieValue(session)) {
+    throw new Error("Sesión expirada. Vuelve a iniciar sesión.");
+  }
 }

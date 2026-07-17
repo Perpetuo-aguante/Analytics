@@ -24,9 +24,13 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           name="q"
           defaultValue={params.q ?? ""}
           placeholder="Buscar por título…"
-          className="min-w-[220px] flex-1 rounded border border-border bg-transparent px-3 py-2 text-sm"
+          className="min-w-[220px] flex-1 rounded-full border border-border bg-white/50 px-4 py-2 text-sm outline-none focus:border-accent"
         />
-        <select name="tema" defaultValue={params.tema ?? ""} className="rounded border border-border bg-transparent px-3 py-2 text-sm">
+        <select
+          name="tema"
+          defaultValue={params.tema ?? ""}
+          className="rounded-full border border-border bg-white/50 px-4 py-2 text-sm outline-none focus:border-accent"
+        >
           <option value="">Todos los temas</option>
           {options.topics.map((t) => (
             <option key={t} value={t}>
@@ -34,7 +38,11 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             </option>
           ))}
         </select>
-        <select name="tipo" defaultValue={params.tipo ?? ""} className="rounded border border-border bg-transparent px-3 py-2 text-sm">
+        <select
+          name="tipo"
+          defaultValue={params.tipo ?? ""}
+          className="rounded-full border border-border bg-white/50 px-4 py-2 text-sm outline-none focus:border-accent"
+        >
           <option value="">Todos los tipos</option>
           {options.postTypes.map((t) => (
             <option key={t} value={t}>
@@ -42,7 +50,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             </option>
           ))}
         </select>
-        <button type="submit" className="rounded bg-foreground px-4 py-2 text-sm font-medium text-background">
+        <button type="submit" className="btn-primary text-sm">
           Filtrar
         </button>
       </form>
