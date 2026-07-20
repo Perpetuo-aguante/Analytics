@@ -1,5 +1,4 @@
 import { getScatterMetrics, getSectionTimelines } from "@/lib/queries";
-import { formatNumber, formatPercent } from "@/lib/display";
 import { ScatterChart, type ScatterDatum } from "@/components/scatter-chart";
 import { SectionTimelineChart, type TimelineSeries } from "@/components/section-timeline-chart";
 
@@ -37,7 +36,7 @@ export default async function DashboardsPage() {
       <section className="mb-16">
         <h2 className="mb-1 font-serif text-xl font-semibold">Views vs. nuevos suscriptores</h2>
         <p className="mb-6 text-sm text-muted">Un punto por post. Toca un tipo en la leyenda para ocultarlo/mostrarlo.</p>
-        <ScatterChart data={viewsVsSubscribers} xLabel="Views" yLabel="Nuevos suscriptores" formatX={formatNumber} formatY={formatNumber} />
+        <ScatterChart data={viewsVsSubscribers} xLabel="Views" yLabel="Nuevos suscriptores" />
       </section>
 
       <section className="mb-16">
@@ -45,7 +44,7 @@ export default async function DashboardsPage() {
         <p className="mb-6 text-sm text-muted">
           Útil para encontrar posts con pocas views pero mucho engagement, o al revés.
         </p>
-        <ScatterChart data={engagementVsViews} xLabel="Views" yLabel="Engagement" formatX={formatNumber} formatY={formatPercent} />
+        <ScatterChart data={engagementVsViews} xLabel="Views" yLabel="Engagement" yFormat="percent" />
       </section>
 
       <section className="mb-16">
