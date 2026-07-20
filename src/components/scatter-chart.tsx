@@ -2,6 +2,7 @@
 
 import { useId, useState } from "react";
 import { niceTicks } from "@/lib/chart-scale";
+import { formatNumber, formatPercent } from "@/lib/display";
 import { LEADERBOARD_POST_TYPES, type LeaderboardPostType } from "@/lib/post-types";
 import { postTypeStyle } from "@/lib/post-type-style";
 import { MarkerShapeIcon } from "./marker-shape";
@@ -14,23 +15,35 @@ export type ScatterDatum = {
   y: number;
 };
 
+// Los formatos se pasan por nombre (no como funciones) porque este es un
+// componente cliente: una página server no puede pasarle funciones como
+// props — React no las puede serializar y la página entera tira 500.
+export type AxisFormat = "number" | "percent";
+
+const FORMATTERS: Record<AxisFormat, (value: number) => string> = {
+  number: formatNumber,
+  percent: formatPercent,
+};
+
 export function ScatterChart({
   data,
   xLabel,
   yLabel,
-  formatX,
-  formatY,
+  xFormat = "number",
+  yFormat = "number",
   width = 640,
   height = 440,
 }: {
   data: ScatterDatum[];
   xLabel: string;
   yLabel: string;
-  formatX: (value: number) => string;
-  formatY: (value: number) => string;
+  xFormat?: AxisFormat;
+  yFormat?: AxisFormat;
   width?: number;
   height?: number;
 }) {
+  const formatX = FORMATTERS[xFormat];
+  const formatY = FORMATTERS[yFormat];
   const titleId = useId();
   const [hidden, setHidden] = useState<Set<LeaderboardPostType>>(() => new Set());
   const [active, setActive] = useState<ScatterDatum | null>(null);

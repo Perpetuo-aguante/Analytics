@@ -2,14 +2,27 @@ import { createAnonClient } from "./supabase/server";
 import type { CurrentMetric, MetricSnapshot, Post } from "./supabase/types";
 import { LEADERBOARD_POST_TYPES, NEWSLETTER_POST_TYPES, matchPostType, type LeaderboardPostType } from "./post-types";
 
-export async function getCurrentMetrics(
-  filters: { q?: string; topic?: string; postType?: string } = {}
-): Promise<CurrentMetric[]> {
+export type CurrentMetricFilters = {
+  q?: string;
+  topic?: string;
+  postType?: string;
+  // Rango de fecha de publicación (YYYY-MM-DD). Filtrar por fecha excluye
+  // posts sin published_at.
+  publishedFrom?: string;
+  publishedTo?: string;
+  // Mínimo de nuevos suscriptores en el snapshot más reciente.
+  minSubscribers?: number;
+};
+
+export async function getCurrentMetrics(filters: CurrentMetricFilters = {}): Promise<CurrentMetric[]> {
   const supabase = createAnonClient();
   let query = supabase.from("current_metrics").select("*");
   if (filters.q) query = query.ilike("title", `%${filters.q}%`);
   if (filters.topic) query = query.eq("topic", filters.topic);
   if (filters.postType) query = query.eq("post_type", filters.postType);
+  if (filters.publishedFrom) query = query.gte("published_at", filters.publishedFrom);
+  if (filters.publishedTo) query = query.lte("published_at", filters.publishedTo);
+  if (filters.minSubscribers != null) query = query.gte("new_subscribers", filters.minSubscribers);
 
   const { data, error } = await query.order("snapshot_date", { ascending: false });
   if (error) throw new Error(error.message);
