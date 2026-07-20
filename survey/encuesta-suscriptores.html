@@ -1,0 +1,510 @@
+<title>Encuesta de suscriptores — Perpetuo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --surface: #fcfcfb;
+    --ink: #0b0b0b;
+    --ink-2: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --baseline: #c3c2b7;
+    --border: rgba(11, 11, 11, 0.10);
+    --wash: rgba(11, 11, 11, 0.04);
+    --s1: #2a78d6;
+    --s2: #eb6834;
+    --s3: #1baf7a;
+    --pos: #2a78d6;
+    --neg: #e34948;
+    --neu: #898781;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page: #0d0d0d;
+      --surface: #1a1a19;
+      --ink: #ffffff;
+      --ink-2: #c3c2b7;
+      --muted: #898781;
+      --grid: #2c2c2a;
+      --baseline: #383835;
+      --border: rgba(255, 255, 255, 0.10);
+      --wash: rgba(255, 255, 255, 0.05);
+      --s1: #3987e5;
+      --s2: #d95926;
+      --s3: #199e70;
+      --pos: #3987e5;
+      --neg: #e66767;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --baseline: #383835;
+    --border: rgba(255, 255, 255, 0.10);
+    --wash: rgba(255, 255, 255, 0.05);
+    --s1: #3987e5;
+    --s2: #d95926;
+    --s3: #199e70;
+    --pos: #3987e5;
+    --neg: #e66767;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 48px 20px 80px; }
+
+  /* ---------- header ---------- */
+  .eyebrow {
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  header.masthead { padding: 8px 0 36px; border-bottom: 1px solid var(--grid); margin-bottom: 36px; }
+  h1 {
+    font-family: var(--serif);
+    font-size: clamp(34px, 5vw, 48px);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 10px 0 12px;
+    text-wrap: balance;
+  }
+  .lede { color: var(--ink-2); max-width: 62ch; margin: 0; }
+
+  /* ---------- sections ---------- */
+  section { margin: 52px 0; }
+  .sec-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 6px; }
+  h2 {
+    font-family: var(--serif);
+    font-size: 27px;
+    font-weight: 600;
+    margin: 0 0 4px;
+    letter-spacing: -0.005em;
+  }
+  .sec-sub { color: var(--ink-2); margin: 0 0 22px; max-width: 68ch; }
+
+  /* ---------- stat tiles ---------- */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; }
+  .tile {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px 14px;
+  }
+  .tile .t-label { font-size: 13px; color: var(--ink-2); }
+  .tile .t-value { font-size: 34px; font-weight: 650; line-height: 1.15; margin-top: 2px; }
+  .tile .t-note { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+
+  /* ---------- chart cards ---------- */
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 16px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 22px 18px;
+  }
+  .card h3 { margin: 0; font-size: 15.5px; font-weight: 650; }
+  .card .n { font-size: 12.5px; color: var(--muted); font-weight: 400; margin: 2px 0 16px; }
+  .card .foot { font-size: 12.5px; color: var(--muted); margin: 14px 0 0; }
+
+  /* horizontal bars */
+  .hbar { display: grid; grid-template-columns: minmax(110px, max-content) 1fr; row-gap: 9px; column-gap: 12px; }
+  .hbar .lbl {
+    font-size: 13.5px; color: var(--ink-2);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    align-self: center; max-width: 210px;
+  }
+  .hbar .trk { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .hbar .fill {
+    height: 18px; background: var(--s1);
+    border-radius: 0 4px 4px 0;
+    min-width: 2px;
+    flex: none;
+  }
+  .hbar .val { font-size: 12.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  #ch-des .lbl { max-width: 340px; }
+  @media (max-width: 560px) { #ch-des .lbl { max-width: 160px; } }
+  .hbar .rowhit { display: contents; }
+  .hbar .rowhit:hover .fill { filter: brightness(1.12); }
+
+  /* columns */
+  .cols { display: flex; align-items: flex-end; gap: 10px; height: 170px; border-bottom: 1px solid var(--baseline); padding: 0 4px; }
+  .cols .c { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; }
+  .cols .c .v { font-size: 12.5px; color: var(--ink-2); margin-bottom: 4px; font-variant-numeric: tabular-nums; }
+  .cols .c .bar { width: 100%; max-width: 44px; background: var(--s1); border-radius: 4px 4px 0 0; }
+  .cols .c:hover .bar { filter: brightness(1.12); }
+  .colx { display: flex; gap: 10px; padding: 6px 4px 0; }
+  .colx span { flex: 1; text-align: center; font-size: 12px; color: var(--muted); }
+
+  /* stacked 100% bar */
+  .stack { display: flex; height: 30px; border-radius: 6px; overflow: hidden; gap: 2px; }
+  .stack .seg { display: flex; align-items: center; justify-content: center; color: #fff; font-size: 12.5px; font-weight: 600; }
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; }
+  .legend .k { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--ink-2); }
+  .legend .sw { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+
+  /* fact strip */
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-top: 16px; }
+  .fact { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; }
+  .fact b { font-size: 22px; font-weight: 650; display: block; }
+  .fact span { font-size: 13px; color: var(--ink-2); }
+
+  /* quotes */
+  .quotes { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin-top: 18px; }
+  blockquote {
+    margin: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px 20px; font-family: var(--serif); font-style: italic; font-size: 15.5px; color: var(--ink);
+  }
+  blockquote footer { font-family: var(--sans); font-style: normal; font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+
+  /* personas */
+  .personas { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
+  .persona {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 0 22px 20px; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .persona .band { height: 6px; margin: 0 -22px 18px; }
+  .persona h3 { font-family: var(--serif); font-size: 21px; font-weight: 600; margin: 0; }
+  .persona .tag { font-size: 12.5px; color: var(--muted); margin: 2px 0 12px; }
+  .persona .share { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+  .persona .share b { font-size: 30px; font-weight: 650; }
+  .persona .share span { font-size: 12.5px; color: var(--muted); }
+  .persona .meter { height: 6px; background: var(--grid); border-radius: 3px; overflow: hidden; margin-bottom: 16px; }
+  .persona .meter i { display: block; height: 100%; border-radius: 3px; }
+  .persona dl { margin: 0; display: grid; grid-template-columns: 1fr; gap: 10px; font-size: 13.5px; }
+  .persona dt { font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  .persona dd { margin: 1px 0 0; color: var(--ink-2); }
+  .persona blockquote { border: none; border-top: 1px solid var(--grid); border-radius: 0; padding: 14px 0 0; margin-top: 16px; font-size: 14.5px; }
+  .hypothesis {
+    margin-top: 22px; padding: 18px 22px; border: 1px dashed var(--baseline); border-radius: 10px;
+    color: var(--ink-2); font-size: 14px; max-width: 76ch;
+  }
+  .hypothesis b { color: var(--ink); }
+
+  /* tooltip */
+  #tip {
+    position: fixed; z-index: 10; pointer-events: none;
+    background: var(--ink); color: var(--page);
+    font-size: 12.5px; padding: 6px 10px; border-radius: 6px;
+    opacity: 0; transition: opacity 0.08s linear; white-space: nowrap;
+  }
+  @media (prefers-reduced-motion: reduce) { #tip { transition: none; } }
+
+  footer.method { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--grid); color: var(--muted); font-size: 12.5px; max-width: 80ch; }
+  footer.method p { margin: 6px 0; }
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <div class="eyebrow">Perpetuo · Encuesta de suscriptores · Julio 2026</div>
+    <h1>Quiénes nos leen</h1>
+    <p class="lede">Las dos versiones de la encuesta —Typeform (54 respuestas) y Google Forms (33)— unificadas
+    en una sola base: <strong>81 lectores únicos</strong>, tras excluir 4 respuestas de prueba del equipo y
+    fusionar 2 personas que contestaron ambos formularios. Profesiones, países y revistas fueron normalizados
+    a mano (p. ej. «periodista» y «periodismo» cuentan como lo mismo).</p>
+  </header>
+
+  <div class="tiles">
+    <div class="tile"><div class="t-label">Respuestas únicas</div><div class="t-value">81</div><div class="t-note">54 Typeform + 33 Forms, depuradas</div></div>
+    <div class="tile"><div class="t-label">NPS</div><div class="t-value">+51</div><div class="t-note">promedio 8.7 / 10</div></div>
+    <div class="tile"><div class="t-label">Suscriptores de pago</div><div class="t-value">26%</div><div class="t-note">13 de 50 (solo Typeform lo preguntó)</div></div>
+    <div class="tile"><div class="t-label">Países</div><div class="t-value">11</div><div class="t-note">49% vive en México</div></div>
+  </div>
+
+  <section>
+    <div class="eyebrow">Demografía</div>
+    <h2>Quiénes son</h2>
+    <p class="sec-sub">Lectores de toda Hispanoamérica y España, con centro de gravedad en México.
+    Muy educados: el 95% con estudios universitarios y casi la mitad con posgrado.</p>
+    <div class="grid2">
+      <div class="card"><h3>País de residencia</h3><div class="n">n = 81</div><div class="hbar" id="ch-pais"></div></div>
+      <div class="card"><h3>Rango de edad</h3><div class="n">n = 81</div><div class="cols" id="ch-edad"></div><div class="colx" id="ch-edad-x"></div></div>
+      <div class="card"><h3>Profesión o sector</h3><div class="n">n = 81 · respuestas abiertas, agrupadas</div><div class="hbar" id="ch-prof"></div></div>
+      <div class="card">
+        <h3>Nivel de estudios</h3><div class="n">n = 81</div><div class="hbar" id="ch-edu"></div>
+        <h3 style="margin-top:22px">Género</h3><div class="n">n = 81</div><div class="hbar" id="ch-gen"></div>
+      </div>
+    </div>
+    <div class="facts">
+      <div class="fact"><b>95%</b><span>tiene el español como lengua materna (77 de 81)</span></div>
+      <div class="fact"><b>42%</b><span>tiene maestría o doctorado (34 de 81)</span></div>
+      <div class="fact"><b>51%</b><span>tiene entre 25 y 44 años (41 de 81)</span></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Hábito</div>
+    <h2>Cómo leen Perpetuo</h2>
+    <p class="sec-sub">Tres de cada cuatro leen al menos una vez por semana. Uno de cada cuatro paga —
+    y de los que pagan, la gran mayoría está satisfecha o muy satisfecha.</p>
+    <div class="grid2">
+      <div class="card"><h3>Frecuencia de lectura</h3><div class="n">n = 50 · solo Typeform preguntó esto</div><div class="hbar" id="ch-frec"></div></div>
+      <div class="card">
+        <h3>Tipo de suscriptor</h3><div class="n">n = 50 · solo Typeform preguntó esto</div>
+        <div class="stack" id="ch-tipo" style="margin-top:6px"></div>
+        <div class="legend" id="ch-tipo-leg"></div>
+        <h3 style="margin-top:24px">Satisfacción con el contenido de pago</h3><div class="n">n = 13 suscriptores de pago</div>
+        <div class="hbar" id="ch-sat"></div>
+      </div>
+      <div class="card" style="grid-column: 1 / -1">
+        <h3>¿Qué tan probable es que recomiendes Perpetuo? (0–10)</h3><div class="n">n = 81</div>
+        <div class="cols" id="ch-nps" style="height:150px"></div><div class="colx" id="ch-nps-x"></div>
+        <div class="legend" id="ch-nps-leg"></div>
+        <p class="foot">NPS = % promotores (9–10) − % detractores (0–6) = 63% − 12% = <strong style="color:var(--ink)">+51</strong>. Un NPS &gt; 50 se considera excelente.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Dieta lectora</div>
+    <h2>Qué leen</h2>
+    <p class="sec-sub">Ensayo y crónica dominan dentro de Perpetuo. Afuera, The New Yorker es la referencia
+    compartida — pero para uno de cada tres, Perpetuo convive solo con newsletters sueltos o con nada.</p>
+    <div class="grid2">
+      <div class="card"><h3>Contenido favorito en Perpetuo</h3><div class="n">% que lo menciona · Typeform permitía varios, Forms uno</div><div class="hbar" id="ch-cont"></div></div>
+      <div class="card"><h3>Otras revistas y medios (2+ menciones)</h3><div class="n">n = 81 · respuestas abiertas, normalizadas</div><div class="hbar" id="ch-rev"></div>
+        <p class="foot">Además, 38 menciones de títulos citados una sola vez (Orsai, Anfibia, WIRED, Harvard Magazine, FT…).</p></div>
+    </div>
+    <div class="facts">
+      <div class="fact"><b>32%</b><span>menciona medios en inglés entre sus lecturas (New Yorker, NYT, Atlantic…)</span></div>
+      <div class="fact"><b>36%</b><span>no está suscrito a ninguna otra revista — Perpetuo es su única suscripción</span></div>
+      <div class="fact"><b>14%</b><span>menciona The New Yorker, la referencia externa más citada (11 de 81)</span></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Deseos</div>
+    <h2>Qué piden</h2>
+    <p class="sec-sub">La comunidad quiere <strong>encontrarse</strong>: eventos con autores y lectores es, por mucho,
+    el deseo más repetido — seguido de concursos y de oportunidades para escribir y formarse.</p>
+    <div class="card"><h3>Eventos y beneficios deseados</h3><div class="n">temas detectados en respuestas abiertas · una respuesta puede tocar varios temas</div><div class="hbar" id="ch-des"></div></div>
+    <div class="quotes">
+      <blockquote>«Sería lindo crear conversaciones entre creadores en español.»<footer>Romina — Pineda de Mar, España</footer></blockquote>
+      <blockquote>«Me gustaría tener una idea más clara de las secciones/temas que puedo esperar.»<footer>Sofía — suscriptora de pago, CDMX</footer></blockquote>
+      <blockquote>«Si hubiera la opción de una suscripción con anuncios que fuera más barata sería increíble.»<footer>María José — 18 a 24, CDMX</footer></blockquote>
+      <blockquote>«Más contenido gratuito para que más gente pueda conocer la revista.»<footer>Adrián — marketing, CDMX</footer></blockquote>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Síntesis</div>
+    <h2>Las tres personas</h2>
+    <p class="sec-sub">Cruzando profesión × idioma de lectura × revistas × tipo de suscripción, la base se ordena
+    en tres arquetipos nítidos que juntos cubren el 74% de la muestra
+    (el resto: estudiantes, jubilados y perfiles sueltos).</p>
+
+    <div class="personas">
+      <article class="persona">
+        <div class="band" style="background:var(--s1)"></div>
+        <h3>La profesora-escritora</h3>
+        <p class="tag">Marcela, 48 · docente universitaria · Bogotá</p>
+        <div class="share"><b>22%</b><span>de la muestra (18 lectores)</span></div>
+        <div class="meter"><i style="width:22%;background:var(--s1)"></i></div>
+        <dl>
+          <dt>Perfil</dt>
+          <dd>35–64 años, maestría o doctorado. Docentes, investigadoras, bibliotecarios. México, Colombia y España por igual.</dd>
+          <dt>Relación con Perpetuo</dt>
+          <dd>Lee cada semana, casi siempre en el plan gratuito (solo 2 de 13 pagan). Es el grupo <strong>más exigente</strong>: NPS +17, el más bajo de los tres — pide más filtro editorial.</dd>
+          <dt>Qué más lee</dt>
+          <dd>Casi todo en español: El País, Anfibia, Orsai. Solo 1 de 3 menciona medios en inglés.</dd>
+          <dt>Qué pide</dt>
+          <dd>Concursos, talleres, residencias — y <strong>publicar ella misma</strong>: muchos escriben además de enseñar.</dd>
+        </dl>
+        <blockquote>«…de los mejores portales para leer, estudiar y mantenerse al día en literatura, sociedad, cultura.»<footer>José Ramón — docente universitario, Colombia</footer></blockquote>
+        <blockquote>«Creo también que hace falta más filtro editorial.»<footer>Lorena — docente y ghostwriter, Bogotá</footer></blockquote>
+      </article>
+
+      <article class="persona">
+        <div class="band" style="background:var(--s2)"></div>
+        <h3>El cronista emergente</h3>
+        <p class="tag">Daniel, 31 · periodista freelance · CDMX</p>
+        <div class="share"><b>23%</b><span>de la muestra (19 lectores)</span></div>
+        <div class="meter"><i style="width:23%;background:var(--s2)"></i></div>
+        <dl>
+          <dt>Perfil</dt>
+          <dd>Periodistas, redactoras, guionistas, editores y creativos. Licenciatura, edades repartidas con núcleo en 25–44. El grupo más panamericano: 7 países.</dd>
+          <dt>Relación con Perpetuo</dt>
+          <dd>El <strong>fan absoluto</strong>: NPS +74, promedio 9.2. Lee crónica sobre todo. Suscriptor gratuito — la mitad no paga por ninguna revista.</dd>
+          <dt>Qué más lee</dt>
+          <dd>Poco y disperso: El País, prensa local, algún Substack. Perpetuo ocupa el centro de su dieta.</dd>
+          <dt>Qué pide</dt>
+          <dd>Encuentros con autores, concursos de crónica y, sobre todo, <strong>una puerta para publicar</strong> en Perpetuo.</dd>
+        </dl>
+        <blockquote>«Listo para escribir con ustedes cuando se ofrezca.»<footer>Javier — guionista y productor, CDMX</footer></blockquote>
+        <blockquote>«Un escape de la rutina, un lugar para explorar.»<footer>Jacqueline — redactora y periodista, Buenos Aires</footer></blockquote>
+      </article>
+
+      <article class="persona">
+        <div class="band" style="background:var(--s3)"></div>
+        <h3>El profesional bilingüe</h3>
+        <p class="tag">Rafael, 33 · product manager · CDMX / EUA</p>
+        <div class="share"><b>28%</b><span>de la muestra (23 lectores)</span></div>
+        <div class="meter"><i style="width:28%;background:var(--s3)"></i></div>
+        <dl>
+          <dt>Perfil</dt>
+          <dd>Tecnología, finanzas, legal, consultoría, marketing, ONG. 25–44 años. Tres de cada cuatro viven en México; varios emigraron a EUA. Todos con el español como lengua materna.</dd>
+          <dt>Relación con Perpetuo</dt>
+          <dd>El que <strong>más paga</strong>: 5 de 12 son suscriptores de pago (42%). NPS +52. Perpetuo es su forma de leer bien <em>en su propio idioma</em>.</dd>
+          <dt>Qué más lee</dt>
+          <dd>Prensa y revistas en inglés: The New Yorker, NYT, The Atlantic, Substacks. El 39% lee habitualmente en inglés.</dd>
+          <dt>Qué pide</dt>
+          <dd>Encuentros y meetups, Q&amp;A con autores, merch — y opciones de precio: donaciones únicas, planes más accesibles.</dd>
+        </dl>
+        <blockquote>«Tenía años siguiendo revistas en otros idiomas y me da mucho gusto haberlos encontrado.»<footer>Andrea — tecnología, Guadalajara</footer></blockquote>
+        <blockquote>«La suscripción es un poco cara y me encantaría poder apoyar de otra manera, merch o donaciones one-time.»<footer>Rafain — product manager, Texas</footer></blockquote>
+      </article>
+    </div>
+
+    <div class="hypothesis">
+      <b>Tu hipótesis vs. la data.</b> Planteabas cuatro perfiles: profesor, periodista, corporativo y emprendedor.
+      Los dos primeros existen tal cual. Los otros dos <b>se funden en uno</b>: en los datos, el abogado, la consultora,
+      el financiero y el fundador de startup se comportan idéntico como lectores — misma edad, mismas revistas en inglés,
+      misma disposición a pagar. Por eso son una sola persona: el profesional bilingüe.
+    </div>
+  </section>
+
+  <footer class="method">
+    <div class="eyebrow">Metodología</div>
+    <p>Fuentes: exportación de Typeform (54 filas, cuestionario largo) y de Google Forms (33 filas, cuestionario corto), julio 2026.
+    Se excluyeron 4 respuestas de prueba del equipo y se fusionaron 2 personas que contestaron ambos formularios
+    (conservando sus respuestas de Typeform y rellenando huecos con las de Forms).</p>
+    <p>Frecuencia, tipo de suscriptor y satisfacción solo existen en Typeform (n = 50). En «contenido favorito», Typeform
+    permitía elegir varios y Forms solo uno; se cuenta el % de encuestados que menciona cada tipo. Profesiones, países,
+    revistas y deseos son respuestas abiertas agrupadas manualmente en categorías.</p>
+  </footer>
+</div>
+
+<div id="tip" role="presentation"></div>
+
+<script>
+  const DATA = {
+    pais: [["México", 40], ["Colombia", 12], ["España", 11], ["Estados Unidos", 5], ["Argentina", 4], ["Perú", 2], ["Costa Rica", 2], ["Chile", 2], ["Uruguay", 1], ["Ecuador", 1], ["El Salvador", 1]],
+    edad: [["18–24", 11], ["25–34", 20], ["35–44", 21], ["45–54", 13], ["55–64", 9], ["65+", 7]],
+    prof: [["Educación y academia", 18], ["Negocios, legal y finanzas", 13], ["Sin dato", 10], ["Arte, cultura y audiovisual", 7], ["Tecnología e ingeniería", 7], ["Periodismo y medios", 7], ["Escritura y editorial", 5], ["Estudiante", 4], ["ONG y filantropía", 3], ["Jubilado/pensionado", 3], ["Salud", 2], ["Otro", 2]],
+    edu: [["Preparatoria", 2], ["Licenciatura", 43], ["Maestría", 30], ["Doctorado", 4], ["Otro", 2]],
+    gen: [["Hombre", 43], ["Mujer", 36], ["Prefiere no decir", 2]],
+    frec: [["A diario", 2], ["Varias veces por semana", 14], ["Una vez por semana", 22], ["Algunas veces al mes", 11], ["Rara vez", 1]],
+    sat: [["Muy satisfecho/a", 7], ["Satisfecho/a", 3], ["Podría mejorar", 2], ["No ve valor", 1]],
+    cont: [["Ensayos", 42], ["Crónica", 39], ["Escritura creativa", 28], ["Poesía", 22], ["Opinión", 17], ["Reseñas", 13], ["Fotografía", 11], ["Podcast", 4]],
+    rev: [["The New Yorker", 11], ["Newsletters de Substack", 7], ["El País / Babelia", 6], ["The New York Times", 6], ["National Geographic", 4], ["Letras Libres", 4], ["Nexos", 3], ["Orsai", 2], ["Gatopardo", 2], ["The Atlantic", 2], ["Proceso", 2], ["5W", 2], ["The Culturist", 2]],
+    des: [["Encuentros con autores y lectores", 20], ["Concursos y convocatorias", 12], ["Talleres, becas y residencias", 12], ["Presentaciones y eventos culturales", 7], ["Publicar en Perpetuo", 6], ["Podcast", 2], ["Merch y otros formatos", 2]],
+    nps: { labels: ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"], values: [0, 0, 1, 0, 1, 2, 6, 5, 15, 14, 37] },
+  };
+
+  const tip = document.getElementById("tip");
+  function bindTip(el, text) {
+    el.addEventListener("mousemove", (e) => {
+      tip.textContent = text;
+      tip.style.opacity = 1;
+      const pad = 14;
+      let x = e.clientX + pad, y = e.clientY + pad;
+      const r = tip.getBoundingClientRect();
+      if (x + r.width > innerWidth - 8) x = e.clientX - r.width - pad;
+      if (y + r.height > innerHeight - 8) y = e.clientY - r.height - pad;
+      tip.style.left = x + "px";
+      tip.style.top = y + "px";
+    });
+    el.addEventListener("mouseleave", () => { tip.style.opacity = 0; });
+  }
+
+  function hbar(id, rows, { total, pct = false } = {}) {
+    const el = document.getElementById(id);
+    const max = Math.max(...rows.map((r) => r[1]));
+    const base = total || rows.reduce((a, r) => a + r[1], 0);
+    for (const [label, v] of rows) {
+      const row = document.createElement("div");
+      row.className = "rowhit";
+      const p = Math.round((100 * v) / base);
+      const shown = pct ? p + "%" : v;
+      row.innerHTML =
+        `<div class="lbl">${label}</div>` +
+        `<div class="trk"><div class="fill" style="width:${(100 * v) / max * 0.82}%"></div><div class="val">${shown}</div></div>`;
+      row.setAttribute("aria-label", `${label}: ${v} de ${base} (${p}%)`);
+      bindTip(row, `${label} — ${v} de ${base} (${p}%)`);
+      el.appendChild(row);
+    }
+  }
+
+  function cols(id, xid, labels, values, colorFn) {
+    const el = document.getElementById(id);
+    const xl = document.getElementById(xid);
+    const max = Math.max(...values);
+    const total = values.reduce((a, b) => a + b, 0);
+    values.forEach((v, i) => {
+      const c = document.createElement("div");
+      c.className = "c";
+      const h = max ? (v / max) * 100 : 0;
+      c.innerHTML = `<div class="v">${v || ""}</div><div class="bar" style="height:${Math.max(h, v ? 2 : 0)}%${colorFn ? ";background:" + colorFn(i) : ""}"></div>`;
+      c.setAttribute("aria-label", `${labels[i]}: ${v}`);
+      bindTip(c, `${labels[i]} — ${v} de ${total} (${Math.round((100 * v) / total)}%)`);
+      el.appendChild(c);
+      const s = document.createElement("span");
+      s.textContent = labels[i];
+      xl.appendChild(s);
+    });
+  }
+
+  function legend(id, items) {
+    const el = document.getElementById(id);
+    el.innerHTML = items.map(([name, color]) => `<div class="k"><span class="sw" style="background:${color}"></span>${name}</div>`).join("");
+  }
+
+  hbar("ch-pais", DATA.pais);
+  hbar("ch-prof", DATA.prof);
+  hbar("ch-edu", DATA.edu);
+  hbar("ch-gen", DATA.gen);
+  hbar("ch-frec", DATA.frec);
+  hbar("ch-sat", DATA.sat);
+  hbar("ch-cont", DATA.cont, { total: 81, pct: true });
+  hbar("ch-rev", DATA.rev);
+  hbar("ch-des", DATA.des);
+  cols("ch-edad", "ch-edad-x", DATA.edad.map((d) => d[0]), DATA.edad.map((d) => d[1]));
+
+  const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  function npsColor(i) { return i <= 6 ? "var(--neg)" : i <= 8 ? "var(--neu)" : "var(--pos)"; }
+  cols("ch-nps", "ch-nps-x", DATA.nps.labels, DATA.nps.values, npsColor);
+  legend("ch-nps-leg", [["Detractores (0–6): 10 · 12%", css("--neg") || "#e34948"], ["Pasivos (7–8): 20 · 25%", css("--neu") || "#898781"], ["Promotores (9–10): 51 · 63%", css("--pos") || "#2a78d6"]]);
+
+  // tipo de suscriptor — stacked 100%
+  (function () {
+    const el = document.getElementById("ch-tipo");
+    const segs = [["Gratuito", 37, "var(--s1)"], ["De pago", 13, "var(--s2)"]];
+    for (const [name, v, color] of segs) {
+      const s = document.createElement("div");
+      s.className = "seg";
+      s.style.width = (100 * v) / 50 + "%";
+      s.style.background = color;
+      s.textContent = Math.round((100 * v) / 50) + "%";
+      bindTip(s, `${name} — ${v} de 50 (${Math.round((100 * v) / 50)}%)`);
+      el.appendChild(s);
+    }
+    legend("ch-tipo-leg", [["Suscriptor gratuito — 37", css("--s1") || "#2a78d6"], ["Suscriptor de pago — 13", css("--s2") || "#eb6834"]]);
+  })();
+
+  // re-render legends on theme flips so swatch colors track the tokens
+  const relegend = () => {
+    legend("ch-nps-leg", [["Detractores (0–6): 10 · 12%", css("--neg")], ["Pasivos (7–8): 20 · 25%", css("--neu")], ["Promotores (9–10): 51 · 63%", css("--pos")]]);
+    legend("ch-tipo-leg", [["Suscriptor gratuito — 37", css("--s1")], ["Suscriptor de pago — 13", css("--s2")]]);
+  };
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", relegend);
+  new MutationObserver(relegend).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+</script>

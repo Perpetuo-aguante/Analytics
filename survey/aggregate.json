@@ -1,0 +1,162 @@
+{
+ "totales": {
+  "typeform": 54,
+  "gforms": 33,
+  "excluidos": 4,
+  "duplicados": 2,
+  "unicos": 81
+ },
+ "pais": {
+  "México": 40,
+  "Colombia": 12,
+  "España": 11,
+  "Estados Unidos": 5,
+  "Argentina": 4,
+  "Perú": 2,
+  "Costa Rica": 2,
+  "Chile": 2,
+  "Uruguay": 1,
+  "Ecuador": 1,
+  "El Salvador": 1
+ },
+ "edad": {
+  "25 a 34": 20,
+  "18 a 24": 11,
+  "55 a 64": 9,
+  "35 a 44": 21,
+  "45 a 54": 13,
+  "65+": 7
+ },
+ "genero": {
+  "Hombre": 43,
+  "Mujer": 36,
+  "Prefiero no especificar": 2
+ },
+ "educacion": {
+  "Grado (Licenciatura)": 43,
+  "Preparatoria": 2,
+  "Doctorado": 4,
+  "Posgrado (Maestría)": 30,
+  "Otro": 2
+ },
+ "esp_nativo": {
+  "Sí": 77,
+  "No": 4
+ },
+ "profesion": {
+  "Educación y academia": 18,
+  "Negocios, legal y finanzas": 13,
+  "Sin dato": 10,
+  "Arte, cultura y audiovisual": 7,
+  "Tecnología e ingeniería": 7,
+  "Periodismo y medios": 7,
+  "Escritura y editorial": 5,
+  "Estudiante": 4,
+  "ONG y filantropía": 3,
+  "Jubilado/pensionado": 3,
+  "Salud": 2,
+  "Otro": 2
+ },
+ "frecuencia": {
+  "Algunas veces al mes": 11,
+  "Una vez por semana": 22,
+  "A diario": 2,
+  "Varias veces por semana": 14,
+  "Rara vez": 1
+ },
+ "tipo_suscriptor": {
+  "Soy suscriptor/a gratuito": 37,
+  "Soy suscriptor/a de pago": 13
+ },
+ "satisfaccion": {
+  "Satisfecho/a": 3,
+  "Muy satisfecho/a": 7,
+  "No veo valor.": 1,
+  "Podría mejorar": 2
+ },
+ "contenido": {
+  "Ensayos": 42,
+  "Crónica": 39,
+  "Escritura creativa": 28,
+  "Poesía": 22,
+  "Opinión": 17,
+  "Reseñas": 13,
+  "Fotografía": 11,
+  "Podcast": 4
+ },
+ "revistas": {
+  "The New Yorker": 11,
+  "Otras (una mención)": 8,
+  "Newsletters de Substack": 7,
+  "El País (y Babelia)": 6,
+  "The New York Times": 6,
+  "National Geographic": 4,
+  "Letras Libres": 4,
+  "Nexos": 3,
+  "Orsai": 2,
+  "5W": 2,
+  "The Culturist": 2,
+  "Gatopardo": 2,
+  "The Atlantic": 2,
+  "Proceso": 2,
+  "Pitchfork": 1,
+  "JAMA": 1,
+  "Muy Historia": 1,
+  "The Objective": 1,
+  "Revista de la Universidad": 1,
+  "Anfibia": 1,
+  "MediaPart": 1,
+  "The Marginalian": 1,
+  "Reforma": 1,
+  "Arena Magazine": 1,
+  "El Malpensante": 1,
+  "El Espectador": 1,
+  "Panenka": 1,
+  "WIRED": 1,
+  "Core Memory": 1,
+  "Whitepaper": 1,
+  "Librújula": 1,
+  "W Magazine": 1,
+  "The Roots of Progress": 1,
+  "Mexico Decoded": 1,
+  "BBC (Culture/Travel/Future)": 1,
+  "Poetic Outlaws": 1,
+  "Este País": 1,
+  "Harvard Magazine": 1,
+  "The Wall Street Journal": 1,
+  "El Cultural": 1,
+  "Time": 1,
+  "Forbes": 1,
+  "The Athletic": 1,
+  "Financial Times": 1
+ },
+ "lee_en_ingles": 26,
+ "sin_otras": 29,
+ "deseos": {
+  "Encuentros con autores y lectores": 20,
+  "Concursos y convocatorias": 12,
+  "Talleres, becas y residencias": 12,
+  "Presentaciones y eventos culturales": 7,
+  "Publicar en Perpetuo": 6,
+  "Podcast": 2,
+  "Merch y otros formatos": 2
+ },
+ "nps": {
+  "n": 81,
+  "promedio": 8.7,
+  "promotores": 51,
+  "pasivos": 20,
+  "detractores": 10,
+  "nps": 51,
+  "dist": {
+   "8": 15,
+   "10": 37,
+   "5": 2,
+   "6": 6,
+   "9": 14,
+   "2": 1,
+   "4": 1,
+   "7": 5
+  }
+ }
+}
