@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getCurrentMetrics, getFilterOptions } from "@/lib/queries";
 import { formatNumber, formatPercent } from "@/lib/display";
+import { DateRangePresets } from "@/components/date-range-presets";
 
 type SearchParams = { q?: string; tema?: string; tipo?: string; desde?: string; hasta?: string; subs?: string };
 
@@ -57,6 +58,8 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             ))}
           </select>
         </div>
+
+        <DateRangePresets currentParams={params} />
 
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2 text-sm text-muted">

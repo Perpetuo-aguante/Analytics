@@ -48,9 +48,32 @@ export function cellToString(value: unknown): string | null {
   return text || null;
 }
 
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+// Valida año/mes/día y devuelve "YYYY-MM-DD", o null si la combinación no
+// existe (ej. 31 de febrero) — evita que new Date() "corrija" fechas
+// inválidas silenciosamente hacia otro mes/día.
+function toIsoDate(year: number, month: number, day: number): string | null {
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+  return `${year}-${pad2(month)}-${pad2(day)}`;
+}
+
 // Fechas: acepta un objeto Date (celdas con formato fecha en Excel), un
-// número (fecha serial de Excel) o un texto ("2026-07-01", "01/07/2026",
-// etc.). Devuelve siempre "YYYY-MM-DD" o null si no se pudo interpretar.
+// número (fecha serial de Excel) o un texto. Devuelve siempre "YYYY-MM-DD"
+// o null si no se pudo interpretar.
+//
+// El texto se parsea a mano (sin new Date(text)) porque para formatos con
+// "/" o "-" de tres números, new Date() asume el formato estadounidense
+// MM/DD/YYYY: una fecha como "01/07/2026" (1 de julio, como la escribiría
+// cualquiera acá) se leía como 7 de enero. Como esto depende del día
+// (día ≤ 12 se interpretaba mal; día > 12 fallaba o quedaba bien por
+// casualidad), el filtro por rango de fechas "se rompía" solo para algunos
+// posts y no para otros. Acá el día siempre va primero (DD/MM/YYYY), salvo
+// que el primer número tenga 4 dígitos (YYYY-MM-DD / YYYY/MM/DD).
 export function parseDateValue(value: unknown): string | null {
   if (value == null || value === "") return null;
   if (value instanceof Date) {
@@ -63,6 +86,20 @@ export function parseDateValue(value: unknown): string | null {
   }
   const text = String(value).trim();
   if (!text) return null;
+
+  const numeric = text.match(/^(\d{1,4})[/\-.](\d{1,2})[/\-.](\d{1,4})$/);
+  if (numeric) {
+    const [, a, b, c] = numeric;
+    if (a.length === 4) {
+      // YYYY-MM-DD
+      return toIsoDate(Number(a), Number(b), Number(c));
+    }
+    // DD-MM-YYYY (día primero)
+    return toIsoDate(Number(c), Number(b), Number(a));
+  }
+
+  // Formatos con nombre de mes (ej. "1 de julio de 2026", "July 1, 2026"):
+  // no son ambiguos, así que el parser nativo es seguro acá.
   const date = new Date(text);
   return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
 }

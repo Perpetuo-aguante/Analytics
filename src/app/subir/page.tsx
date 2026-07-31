@@ -3,6 +3,7 @@ import { isValidSessionCookieValue, SESSION_COOKIE_NAME } from "@/lib/session";
 import { LoginForm } from "./login-form";
 import { Uploader } from "./uploader";
 import { ManageUploads } from "./manage-uploads";
+import { DuplicateFinder } from "./duplicate-finder";
 import { logout } from "./actions";
 
 export default async function SubirPage() {
@@ -31,6 +32,8 @@ export default async function SubirPage() {
       <Uploader />
       <hr className="my-12 border-border" />
       <ManageUploads />
+      <hr className="my-12 border-border" />
+      <DuplicateFinder />
     </main>
   );
 }
