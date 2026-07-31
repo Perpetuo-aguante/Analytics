@@ -12,6 +12,7 @@ import {
 import { parseUploadedFile } from "@/lib/parse";
 import { suggestMapping, type FieldKey } from "@/lib/columns";
 import { cellToString, parseDateValue, parseIntValue, parseRateValue, slugify } from "@/lib/format";
+import { similarity } from "@/lib/dedupe";
 import { createAdminClient } from "@/lib/supabase/server";
 
 export type LoginState = { error: string | null };
@@ -257,5 +258,131 @@ export async function deleteUpload(
     };
   } catch (err) {
     return { data: null, error: err instanceof Error ? err.message : "No se pudo eliminar la carga." };
+  }
+}
+
+export type DuplicateCandidate = {
+  postA: { id: string; slug: string; title: string; publishedAt: string | null };
+  postB: { id: string; slug: string; title: string; publishedAt: string | null };
+  similarity: number;
+};
+
+// Umbral de similitud (0-1) para considerar dos posts "posibles duplicados".
+// 0.82 detecta variantes como slug-crudo-vs-título-real sin generar
+// demasiados falsos positivos entre títulos legítimamente distintos.
+const DUPLICATE_SIMILARITY_THRESHOLD = 0.82;
+
+// Compara todos los posts entre sí por similitud de slug/título y devuelve
+// los pares que probablemente sean el mismo post cargado dos veces (ver
+// lib/dedupe.ts para el motivo). No modifica nada: solo detecta, la fusión
+// la confirma un humano con mergeDuplicatePosts.
+export async function findDuplicateCandidates(): Promise<{ data: DuplicateCandidate[] | null; error: string | null }> {
+  try {
+    await requireSession();
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from("posts")
+      .select("id, slug, title, published_at")
+      .order("title");
+    if (error) return { data: null, error: error.message };
+
+    const posts = data ?? [];
+    const candidates: DuplicateCandidate[] = [];
+    for (let i = 0; i < posts.length; i++) {
+      for (let j = i + 1; j < posts.length; j++) {
+        const sim = similarity(posts[i].slug, posts[j].slug);
+        if (sim >= DUPLICATE_SIMILARITY_THRESHOLD) {
+          candidates.push({
+            postA: {
+              id: posts[i].id,
+              slug: posts[i].slug,
+              title: posts[i].title,
+              publishedAt: posts[i].published_at,
+            },
+            postB: {
+              id: posts[j].id,
+              slug: posts[j].slug,
+              title: posts[j].title,
+              publishedAt: posts[j].published_at,
+            },
+            similarity: sim,
+          });
+        }
+      }
+    }
+    candidates.sort((a, b) => b.similarity - a.similarity);
+    return { data: candidates, error: null };
+  } catch (err) {
+    return { data: null, error: err instanceof Error ? err.message : "No se pudo buscar duplicados." };
+  }
+}
+
+export type MergeSummary = { snapshotsMovidos: number; snapshotsDescartados: number };
+
+// Combina dos posts que son en realidad el mismo: mueve las métricas de
+// discardId hacia keepId (salvo las semanas que keepId ya tiene, esas se
+// descartan porque metric_snapshots tiene unique(post_id, snapshot_date)) y
+// elimina el post duplicado. Operación destructiva — se confirma a mano
+// desde /subir, post por post, nunca en lote automático.
+export async function mergeDuplicatePosts(
+  keepId: string,
+  discardId: string
+): Promise<{ data: MergeSummary | null; error: string | null }> {
+  try {
+    await requireSession();
+    if (keepId === discardId) return { data: null, error: "Los dos posts son el mismo." };
+    const supabase = createAdminClient();
+
+    const { data: discardSnaps, error: discardError } = await supabase
+      .from("metric_snapshots")
+      .select("id, snapshot_date")
+      .eq("post_id", discardId);
+    if (discardError) return { data: null, error: discardError.message };
+
+    const { data: keepSnaps, error: keepError } = await supabase
+      .from("metric_snapshots")
+      .select("snapshot_date")
+      .eq("post_id", keepId);
+    if (keepError) return { data: null, error: keepError.message };
+
+    const keepDates = new Set((keepSnaps ?? []).map((s) => s.snapshot_date as string));
+    const toMove = (discardSnaps ?? []).filter((s) => !keepDates.has(s.snapshot_date as string));
+    const toDrop = (discardSnaps ?? []).filter((s) => keepDates.has(s.snapshot_date as string));
+
+    if (toMove.length > 0) {
+      const { error: moveError } = await supabase
+        .from("metric_snapshots")
+        .update({ post_id: keepId })
+        .in(
+          "id",
+          toMove.map((s) => s.id)
+        );
+      if (moveError) return { data: null, error: moveError.message };
+    }
+    if (toDrop.length > 0) {
+      const { error: dropError } = await supabase
+        .from("metric_snapshots")
+        .delete()
+        .in(
+          "id",
+          toDrop.map((s) => s.id)
+        );
+      if (dropError) return { data: null, error: dropError.message };
+    }
+
+    const { error: deletePostError } = await supabase.from("posts").delete().eq("id", discardId);
+    if (deletePostError) return { data: null, error: deletePostError.message };
+
+    revalidatePath("/");
+    revalidatePath("/rankings");
+    revalidatePath("/dashboards");
+    revalidatePath("/promedios");
+
+    return {
+      data: { snapshotsMovidos: toMove.length, snapshotsDescartados: toDrop.length },
+      error: null,
+    };
+  } catch (err) {
+    return { data: null, error: err instanceof Error ? err.message : "No se pudo combinar los posts." };
   }
 }

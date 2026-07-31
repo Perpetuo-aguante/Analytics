@@ -203,6 +203,161 @@ export async function getSectionTimelines(): Promise<
   });
 }
 
+export type AggregateMetricFilters = {
+  postType?: string;
+  publishedFrom?: string;
+  publishedTo?: string;
+};
+
+export type AggregateMetrics = {
+  postCount: number;
+  avgOpenRate: number | null;
+  avgEngagement: number | null;
+  avgNewSubscribers: number | null;
+  avgViews: number | null;
+};
+
+function average(values: number[]): number | null {
+  return values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : null;
+}
+
+// Promedio agregado (open rate, engagement, nuevos suscriptores, views) del
+// snapshot más reciente de cada post que matchea los filtros. Es el número
+// "de un vistazo" para la sección de promedios; getMovingAverages (abajo) es
+// la versión histórica/suavizada de lo mismo.
+export async function getAggregateMetrics(filters: AggregateMetricFilters = {}): Promise<AggregateMetrics> {
+  const supabase = createAnonClient();
+  let query = supabase.from("current_metrics").select("*");
+  if (filters.postType) query = query.eq("post_type", filters.postType);
+  if (filters.publishedFrom) query = query.gte("published_at", filters.publishedFrom);
+  if (filters.publishedTo) query = query.lte("published_at", filters.publishedTo);
+
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  const rows = (data ?? []) as CurrentMetric[];
+
+  const pick = (key: keyof CurrentMetric) =>
+    rows.map((r) => r[key]).filter((v): v is number => typeof v === "number");
+
+  return {
+    postCount: rows.length,
+    avgOpenRate: average(pick("open_rate")),
+    avgEngagement: average(pick("engagement")),
+    avgNewSubscribers: average(pick("new_subscribers")),
+    avgViews: average(pick("views")),
+  };
+}
+
+export type MovingAveragePoint = {
+  date: string;
+  avgOpenRate: number | null;
+  avgEngagement: number | null;
+  avgNewSubscribers: number | null;
+  avgViews: number | null;
+};
+
+// Cuántas cargas semanales se promedian para suavizar la serie histórica.
+const MOVING_AVERAGE_WINDOW = 3;
+
+type MetricBucket = {
+  openRateSum: number;
+  openRateCount: number;
+  engagementSum: number;
+  engagementCount: number;
+  subsSum: number;
+  subsCount: number;
+  viewsSum: number;
+  viewsCount: number;
+};
+
+function emptyMetricBucket(): MetricBucket {
+  return {
+    openRateSum: 0,
+    openRateCount: 0,
+    engagementSum: 0,
+    engagementCount: 0,
+    subsSum: 0,
+    subsCount: 0,
+    viewsSum: 0,
+    viewsCount: 0,
+  };
+}
+
+// Media móvil histórica de los mismos 4 promedios que getAggregateMetrics,
+// pero por carga semanal: primero se calcula el promedio transversal de
+// cada carga (todos los posts que matchean los filtros, en esa fecha),
+// después se suaviza con una ventana móvil de MOVING_AVERAGE_WINDOW cargas
+// para reducir el ruido semana a semana.
+export async function getMovingAverages(filters: AggregateMetricFilters = {}): Promise<MovingAveragePoint[]> {
+  const supabase = createAnonClient();
+  let postsQuery = supabase.from("posts").select("id, post_type, published_at");
+  if (filters.postType) postsQuery = postsQuery.eq("post_type", filters.postType);
+  if (filters.publishedFrom) postsQuery = postsQuery.gte("published_at", filters.publishedFrom);
+  if (filters.publishedTo) postsQuery = postsQuery.lte("published_at", filters.publishedTo);
+
+  const [postsRes, snapshotsRes] = await Promise.all([
+    postsQuery,
+    supabase.from("metric_snapshots").select("post_id, snapshot_date, views, new_subscribers, open_rate, engagement"),
+  ]);
+  if (postsRes.error) throw new Error(postsRes.error.message);
+  if (snapshotsRes.error) throw new Error(snapshotsRes.error.message);
+
+  const includedPostIds = new Set((postsRes.data ?? []).map((p) => p.id as string));
+
+  const buckets = new Map<string, MetricBucket>(); // key: snapshot_date
+  for (const snap of snapshotsRes.data ?? []) {
+    if (!includedPostIds.has(snap.post_id as string)) continue;
+    const date = snap.snapshot_date as string;
+    const bucket = buckets.get(date) ?? emptyMetricBucket();
+    if (snap.open_rate != null) {
+      bucket.openRateSum += snap.open_rate;
+      bucket.openRateCount += 1;
+    }
+    if (snap.engagement != null) {
+      bucket.engagementSum += snap.engagement;
+      bucket.engagementCount += 1;
+    }
+    if (snap.new_subscribers != null) {
+      bucket.subsSum += snap.new_subscribers;
+      bucket.subsCount += 1;
+    }
+    if (snap.views != null) {
+      bucket.viewsSum += snap.views;
+      bucket.viewsCount += 1;
+    }
+    buckets.set(date, bucket);
+  }
+
+  const dates = Array.from(buckets.keys()).sort();
+  const raw = dates.map((date) => {
+    const b = buckets.get(date)!;
+    return {
+      date,
+      avgOpenRate: b.openRateCount > 0 ? b.openRateSum / b.openRateCount : null,
+      avgEngagement: b.engagementCount > 0 ? b.engagementSum / b.engagementCount : null,
+      avgNewSubscribers: b.subsCount > 0 ? b.subsSum / b.subsCount : null,
+      avgViews: b.viewsCount > 0 ? b.viewsSum / b.viewsCount : null,
+    };
+  });
+
+  const metricKeys = ["avgOpenRate", "avgEngagement", "avgNewSubscribers", "avgViews"] as const;
+  return raw.map((point, i) => {
+    const windowSlice = raw.slice(Math.max(0, i - MOVING_AVERAGE_WINDOW + 1), i + 1);
+    const smoothed: MovingAveragePoint = {
+      date: point.date,
+      avgOpenRate: null,
+      avgEngagement: null,
+      avgNewSubscribers: null,
+      avgViews: null,
+    };
+    for (const key of metricKeys) {
+      const values = windowSlice.map((p) => p[key]).filter((v): v is number => v != null);
+      smoothed[key] = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : null;
+    }
+    return smoothed;
+  });
+}
+
 export async function getSnapshotsForPost(postId: string): Promise<MetricSnapshot[]> {
   const supabase = createAnonClient();
   const { data, error } = await supabase
