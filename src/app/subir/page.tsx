@@ -4,6 +4,8 @@ import { LoginForm } from "./login-form";
 import { Uploader } from "./uploader";
 import { ManageUploads } from "./manage-uploads";
 import { DuplicateFinder } from "./duplicate-finder";
+import { SubscribersUploader } from "./subscribers-uploader";
+import { SubscribersManageUploads } from "./subscribers-manage-uploads";
 import { logout } from "./actions";
 
 export default async function SubirPage() {
@@ -29,11 +31,19 @@ export default async function SubirPage() {
           </button>
         </form>
       </div>
+      <h2 className="mb-6 font-serif text-xl font-semibold">Métricas de posts</h2>
       <Uploader />
       <hr className="my-12 border-border" />
       <ManageUploads />
       <hr className="my-12 border-border" />
       <DuplicateFinder />
+
+      <hr className="my-16 border-border" />
+
+      <h2 className="mb-6 font-serif text-xl font-semibold">Suscriptores</h2>
+      <SubscribersUploader />
+      <hr className="my-12 border-border" />
+      <SubscribersManageUploads />
     </main>
   );
 }

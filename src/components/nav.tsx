@@ -20,6 +20,9 @@ export function Nav() {
           <Link href="/promedios" className="rounded-full px-3 py-1.5 hover:bg-accent/10 hover:text-foreground">
             Promedios
           </Link>
+          <Link href="/suscriptores" className="rounded-full px-3 py-1.5 hover:bg-accent/10 hover:text-foreground">
+            Suscriptores
+          </Link>
           <Link href="/subir" className="btn-primary px-4 py-1.5 text-xs">
             Cargar
           </Link>
