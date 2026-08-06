@@ -56,12 +56,30 @@ export type SubscriberImportSummary = {
 };
 
 // Divide un arreglo en bloques: Supabase/Postgres no tiene problema con miles
-// de filas, pero mandarlas todas en un solo request es frágil (timeouts,
-// límites de payload). 500 es un tamaño cómodo para ~4000 suscriptores.
+// de filas, pero mandarlas todas en un solo request es frágil.
 function chunk<T>(items: T[], size: number): T[][] {
   const chunks: T[][] = [];
   for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
   return chunks;
+}
+
+// Tamaño de bloque para upserts (van en el body del POST): 500 es cómodo
+// para ~4000 suscriptores y no tiene límite de URL.
+const UPSERT_CHUNK_SIZE = 500;
+
+// Tamaño de bloque para filtros .in() (van en la query string del GET/DELETE
+// vía PostgREST): con miles de emails/ids un solo .in() arma una URL de
+// decenas de miles de caracteres y el gateway la rechaza (falla con un error
+// de red cuyo .message queda vacío — así se manifestó este bug). 200 emails
+// se queda cómodo por debajo de los límites de longitud de URL usuales.
+const FILTER_CHUNK_SIZE = 200;
+
+// Los errores de red/gateway (a diferencia de los que arma PostgREST) a
+// veces llegan con `.message` vacío — de ahí el mensaje en blanco que se vio
+// en el bug de la URL demasiado larga. Este helper siempre deja algo legible.
+function describeError(error: { message?: string; code?: string } | null | undefined): string {
+  if (!error) return "Error desconocido.";
+  return error.message?.trim() || (error.code ? `Error ${error.code}.` : JSON.stringify(error));
 }
 
 export async function commitSubscriberImport(input: {
@@ -170,24 +188,31 @@ export async function commitSubscriberImport(input: {
     const supabase = createAdminClient();
     const emails = Array.from(subscribersByEmail.keys());
 
-    const { data: existing, error: existingError } = await supabase
-      .from("subscribers")
-      .select("email")
-      .in("email", emails);
-    if (existingError) {
-      return { data: null, error: `No se pudo leer suscriptores existentes: ${existingError.message}` };
+    // Con miles de suscriptores, un solo .in("email", emails) arma una URL
+    // GET gigante (PostgREST manda el filtro como query param) y el request
+    // falla contra el límite de longitud de URL del gateway — por eso se
+    // consulta en bloques, igual que los upserts de abajo.
+    const existingEmails = new Set<string>();
+    for (const batch of chunk(emails, FILTER_CHUNK_SIZE)) {
+      const { data: existing, error: existingError } = await supabase
+        .from("subscribers")
+        .select("email")
+        .in("email", batch);
+      if (existingError) {
+        return { data: null, error: `No se pudo leer suscriptores existentes: ${describeError(existingError)}` };
+      }
+      for (const row of existing ?? []) existingEmails.add(row.email as string);
     }
-    const existingEmails = new Set((existing ?? []).map((s) => s.email as string));
 
     const subscribersPayload = Array.from(subscribersByEmail.values());
     const idByEmail = new Map<string, string>();
-    for (const batch of chunk(subscribersPayload, 500)) {
+    for (const batch of chunk(subscribersPayload, UPSERT_CHUNK_SIZE)) {
       const { data: upserted, error: upsertError } = await supabase
         .from("subscribers")
         .upsert(batch, { onConflict: "email" })
         .select("id, email");
       if (upsertError || !upserted) {
-        return { data: null, error: `No se pudo guardar los suscriptores: ${upsertError?.message}` };
+        return { data: null, error: `No se pudo guardar los suscriptores: ${describeError(upsertError)}` };
       }
       for (const row of upserted) idByEmail.set(row.email as string, row.id as string);
     }
@@ -196,12 +221,12 @@ export async function commitSubscriberImport(input: {
       .map(([email, snap]) => ({ subscriber_id: idByEmail.get(email), ...snap }))
       .filter((s) => s.subscriber_id);
 
-    for (const batch of chunk(snapshotsPayload, 500)) {
+    for (const batch of chunk(snapshotsPayload, UPSERT_CHUNK_SIZE)) {
       const { error: snapshotError } = await supabase
         .from("subscriber_snapshots")
         .upsert(batch, { onConflict: "subscriber_id,snapshot_date" });
       if (snapshotError) {
-        return { data: null, error: `No se pudo guardar las métricas: ${snapshotError.message}` };
+        return { data: null, error: `No se pudo guardar las métricas: ${describeError(snapshotError)}` };
       }
     }
 
@@ -237,7 +262,7 @@ export async function listSubscriberUploads(): Promise<{
       .from("subscriber_snapshots")
       .select("snapshot_date")
       .order("snapshot_date", { ascending: false });
-    if (error) return { data: null, error: error.message };
+    if (error) return { data: null, error: describeError(error) };
 
     const counts = new Map<string, number>();
     for (const row of data ?? []) {
@@ -271,24 +296,29 @@ export async function deleteSubscriberUpload(
       .delete()
       .eq("snapshot_date", snapshotDate)
       .select("subscriber_id");
-    if (deleteError) return { data: null, error: deleteError.message };
+    if (deleteError) return { data: null, error: describeError(deleteError) };
 
     const affectedIds = Array.from(new Set((deleted ?? []).map((r) => r.subscriber_id as string)));
     let subscribersEliminados = 0;
     if (affectedIds.length > 0) {
-      const { data: remaining, error: remainingError } = await supabase
-        .from("subscriber_snapshots")
-        .select("subscriber_id")
-        .in("subscriber_id", affectedIds);
-      if (remainingError) return { data: null, error: remainingError.message };
-
-      const stillHaveSnapshots = new Set((remaining ?? []).map((r) => r.subscriber_id as string));
-      const orphanIds = affectedIds.filter((id) => !stillHaveSnapshots.has(id));
-      if (orphanIds.length > 0) {
-        const { error: orphanError } = await supabase.from("subscribers").delete().in("id", orphanIds);
-        if (orphanError) return { data: null, error: orphanError.message };
-        subscribersEliminados = orphanIds.length;
+      // Igual que en commitSubscriberImport: con miles de ids, un solo
+      // .in() arma una URL demasiado larga — se consulta/borra en bloques.
+      const stillHaveSnapshots = new Set<string>();
+      for (const batch of chunk(affectedIds, FILTER_CHUNK_SIZE)) {
+        const { data: remaining, error: remainingError } = await supabase
+          .from("subscriber_snapshots")
+          .select("subscriber_id")
+          .in("subscriber_id", batch);
+        if (remainingError) return { data: null, error: describeError(remainingError) };
+        for (const row of remaining ?? []) stillHaveSnapshots.add(row.subscriber_id as string);
       }
+
+      const orphanIds = affectedIds.filter((id) => !stillHaveSnapshots.has(id));
+      for (const batch of chunk(orphanIds, FILTER_CHUNK_SIZE)) {
+        const { error: orphanError } = await supabase.from("subscribers").delete().in("id", batch);
+        if (orphanError) return { data: null, error: describeError(orphanError) };
+      }
+      subscribersEliminados = orphanIds.length;
     }
 
     revalidatePath("/suscriptores");
