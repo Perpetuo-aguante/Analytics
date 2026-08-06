@@ -42,3 +42,10 @@ npm run dev
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API → service_role secret (nunca la expongas) |
 | `UPLOAD_PASSWORD` | La contraseña que tú elijas para entrar a `/subir` |
 | `SESSION_SECRET` | Cadena aleatoria larga, ej. `openssl rand -hex 32` |
+| `ANALYTICS_API_KEY` | Cadena aleatoria larga (ej. `openssl rand -hex 32`) que protege `/api/subscribers/lookup` |
+
+## API para integraciones (n8n)
+
+- **`GET /api/subscribers/lookup?email=...`**: dado el email de un suscriptor, devuelve todos sus datos de `current_subscriber_metrics` (tipo, plan, país, antigüedad, revenue, open rate, actividad, secciones, etc.) más un resumen ya formateado en mrkdwn de Slack (`slackSummary`), listo para pegar en un mensaje. Requiere el header `x-api-key: <ANALYTICS_API_KEY>`; sin ese header (o si la variable no está configurada en el servidor) responde 401/500. Si el email no está en la base devuelve `{ found: false, slackSummary: "..." }` con status 200.
+
+  Lo usa el workflow de n8n **"Perpetuo: Bajas Substack → Slack + Apollo Unsubs"**: al detectar un email de baja, le pega a este endpoint y postea `slackSummary` en el canal de Slack en vez del texto genérico anterior.
