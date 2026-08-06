@@ -129,3 +129,26 @@ export function parseRateValue(value: unknown): number | null {
   if (!Number.isFinite(num)) return null;
   return hasPercentSign || num > 1 ? num / 100 : num;
 }
+
+// Montos de dinero: acepta "$80.00", "80", "1,234.50", etc. A diferencia de
+// parseIntValue no redondea (los montos sí tienen decimales de centavos).
+export function parseMoneyValue(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  const text = String(value).replace(/[$,\s]/g, "");
+  const num = Number(text);
+  return Number.isFinite(num) ? num : null;
+}
+
+// Timestamps completos (ej. "Last email open": "2026-07-28T21:25:49.792Z"),
+// a diferencia de parseDateValue que trunca a "YYYY-MM-DD". Devuelve el ISO
+// completo o null si no se pudo interpretar.
+export function parseTimestampValue(value: unknown): string | null {
+  if (value == null || value === "") return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value.toISOString();
+  }
+  const text = String(value).trim();
+  if (!text) return null;
+  const date = new Date(text);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
