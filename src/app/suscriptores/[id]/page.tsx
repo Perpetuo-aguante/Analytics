@@ -13,14 +13,36 @@ export default async function SubscriberDetailPage({ params }: { params: Promise
   if (!detail) notFound();
   const { subscriber, history } = detail;
 
+  // El % solo no distingue "3 de 7" de "300 de 700" — mostrar también los
+  // conteos crudos da una idea más real de cuánto engagement hay detrás.
   const tiles = [
-    { label: "Open rate (6m)", value: formatPercent(subscriber.open_rate_6mo) },
-    { label: "Click rate", value: formatPercent(subscriber.click_rate) },
+    {
+      label: "Open rate (6m)",
+      value: formatPercent(subscriber.open_rate_6mo),
+      detail:
+        subscriber.emails_received_6mo != null
+          ? `${formatNumber(subscriber.emails_opened_6mo)} de ${formatNumber(subscriber.emails_received_6mo)} emails`
+          : undefined,
+    },
+    {
+      label: "Click rate",
+      value: formatPercent(subscriber.click_rate),
+      detail: subscriber.links_clicked != null ? `${formatNumber(subscriber.links_clicked)} clics (6m)` : undefined,
+    },
+    {
+      label: "Aperturas recientes",
+      value: `${formatNumber(subscriber.emails_opened_30d)} (30d)`,
+      detail: `${formatNumber(subscriber.emails_opened_7d)} en los últimos 7 días`,
+    },
     { label: "Post views", value: formatNumber(subscriber.post_views) },
     { label: "Comentarios", value: formatNumber(subscriber.comments) },
     { label: "Shares", value: formatNumber(subscriber.shares) },
     { label: "Actividad (0-5)", value: subscriber.activity != null ? String(subscriber.activity) : "—" },
-    { label: "Días activos (30d)", value: formatNumber(subscriber.days_active_30d) },
+    {
+      label: "Días activos (30d)",
+      value: formatNumber(subscriber.days_active_30d),
+      detail: "días distintos con actividad, de los últimos 30",
+    },
     { label: "Revenue", value: formatMoney(subscriber.revenue) },
   ];
 
@@ -76,6 +98,7 @@ export default async function SubscriberDetailPage({ params }: { params: Promise
           <div key={tile.label} className="rounded-2xl border border-border p-4">
             <p className="text-xs text-muted">{tile.label}</p>
             <p className="mt-1 font-serif text-xl font-semibold">{tile.value}</p>
+            {tile.detail && <p className="mt-0.5 text-xs text-muted">{tile.detail}</p>}
           </div>
         ))}
       </section>
