@@ -34,11 +34,35 @@ export type SubscriberFilters = {
 
 export type SubscriberSort = "antiguedad" | "open_rate" | "actividad" | "revenue" | "views";
 
+// Supabase/PostgREST corta cualquier select sin .range() en 1000 filas por
+// default (configurable en Project Settings → API → Max Rows, pero 1000 es
+// lo usual). Con ~4000 suscriptores eso truncaba silenciosamente el panel y
+// la lista a los primeros 1000 — el import en sí escribía todo bien, era
+// solo la lectura la que se quedaba corta. Por eso acá se pagina hasta
+// agotar las filas en vez de un único `.select("*")`.
+const SUPABASE_PAGE_SIZE = 1000;
+
+async function fetchAllPages<T>(
+  fetchPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>
+): Promise<T[]> {
+  const all: T[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await fetchPage(from, from + SUPABASE_PAGE_SIZE - 1);
+    if (error) throw new Error(error.message);
+    const rows = data ?? [];
+    all.push(...rows);
+    if (rows.length < SUPABASE_PAGE_SIZE) break;
+    from += SUPABASE_PAGE_SIZE;
+  }
+  return all;
+}
+
 async function fetchAllSubscriberMetrics(): Promise<CurrentSubscriberMetric[]> {
   const supabase = createAnonClient();
-  const { data, error } = await supabase.from("current_subscriber_metrics").select("*");
-  if (error) throw new Error(error.message);
-  return (data ?? []) as CurrentSubscriberMetric[];
+  return fetchAllPages<CurrentSubscriberMetric>((from, to) =>
+    supabase.from("current_subscriber_metrics").select("*").range(from, to)
+  );
 }
 
 export async function getSubscribers(
@@ -99,16 +123,17 @@ export async function getSubscriberFilterOptions(): Promise<{
   sections: string[];
 }> {
   const supabase = createAnonClient();
-  const { data, error } = await supabase.from("subscribers").select("type, country, sections");
-  if (error) throw new Error(error.message);
+  const rows = await fetchAllPages<{ type: string | null; country: string | null; sections: string[] | null }>(
+    (from, to) => supabase.from("subscribers").select("type, country, sections").range(from, to)
+  );
 
   const types = new Set<string>();
   const countries = new Set<string>();
   const sections = new Set<string>();
-  for (const row of data ?? []) {
-    if (row.type) types.add(row.type as string);
-    if (row.country) countries.add(row.country as string);
-    for (const section of (row.sections as string[] | null) ?? []) sections.add(section);
+  for (const row of rows) {
+    if (row.type) types.add(row.type);
+    if (row.country) countries.add(row.country);
+    for (const section of row.sections ?? []) sections.add(section);
   }
   return {
     types: Array.from(types).sort(),
