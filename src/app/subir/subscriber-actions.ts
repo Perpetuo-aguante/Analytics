@@ -132,7 +132,15 @@ export async function commitSubscriberImport(input: {
         type: cols.type ? cellToString(get("type")) : undefined,
         stripe_plan: cols.stripe_plan ? cellToString(get("stripe_plan")) : undefined,
         start_date: cols.start_date ? parseDateValue(get("start_date")) : undefined,
-        cancel_date: cols.cancel_date ? parseDateValue(get("cancel_date")) : undefined,
+        // A diferencia de los demás campos de este objeto, una celda vacía
+        // acá NO se traduce a `null`: cancel_date también lo puede escribir
+        // en tiempo real /api/subscribers/cancel (ver ese archivo) cuando el
+        // workflow de n8n detecta una baja, y no queremos que la carga
+        // semanal del CSV completo borre esa baja solo porque esta fila en
+        // particular vino sin "Cancel date" (ej. el export de Substack
+        // todavía no lo reflejó). Si el CSV sí trae una fecha, esa manda
+        // igual (por si corrige o adelanta la que pusimos nosotros).
+        cancel_date: cols.cancel_date ? parseDateValue(get("cancel_date")) ?? undefined : undefined,
         paid_upgrade_date: cols.paid_upgrade_date ? parseDateValue(get("paid_upgrade_date")) : undefined,
         first_paid_date: cols.first_paid_date ? parseDateValue(get("first_paid_date")) : undefined,
         expiration_date: cols.expiration_date ? parseDateValue(get("expiration_date")) : undefined,

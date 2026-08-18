@@ -44,10 +44,14 @@ npm run dev
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API → service_role secret (nunca la expongas) |
 | `UPLOAD_PASSWORD` | La contraseña que tú elijas para entrar a `/subir` |
 | `SESSION_SECRET` | Cadena aleatoria larga, ej. `openssl rand -hex 32` |
-| `ANALYTICS_API_KEY` | Cadena aleatoria larga (ej. `openssl rand -hex 32`) que protege `/api/subscribers/lookup` |
+| `ANALYTICS_API_KEY` | Cadena aleatoria larga (ej. `openssl rand -hex 32`) que protege `/api/subscribers/lookup` y `/api/subscribers/cancel` |
 
 ## API para integraciones (n8n)
 
 - **`GET /api/subscribers/lookup?email=...`**: dado el email de un suscriptor, devuelve todos sus datos de `current_subscriber_metrics` (tipo, plan, país, antigüedad, revenue, open rate, actividad, secciones, etc.) más un resumen ya formateado en mrkdwn de Slack (`slackSummary`), listo para pegar en un mensaje. Requiere el header `x-api-key: <ANALYTICS_API_KEY>`; sin ese header (o si la variable no está configurada en el servidor) responde 401/500. Si el email no está en la base devuelve `{ found: false, slackSummary: "..." }` con status 200.
 
   Lo usa el workflow de n8n **"Perpetuo: Bajas Substack → Slack + Apollo Unsubs"**: al detectar un email de baja, le pega a este endpoint y postea `slackSummary` en el canal de Slack en vez del texto genérico anterior.
+
+- **`POST /api/subscribers/cancel`**: anota la baja de un suscriptor al momento, en vez de esperar a la próxima carga semanal del CSV completo (que es la única otra fuente de `cancel_date` — ver `subir/subscriber-actions.ts`). Body `{ "email": "...", "cancelDate"?: "YYYY-MM-DD" }` (si se omite `cancelDate` se usa la fecha de hoy). Mismo header `x-api-key`. Si el suscriptor todavía no existía en `subscribers` lo crea con lo poco que sabemos (email + fecha de baja); si ya existía, solo pisa `cancel_date` — el resto de sus atributos los sigue completando la carga semanal. Una carga semanal posterior con la celda "Cancel date" vacía para esa fila **no** borra esta baja (ver el comentario en `cancel_date` de `subir/subscriber-actions.ts`); si esa carga sí trae una fecha, esa manda.
+
+  Para conectarlo al mismo workflow de n8n: agregar un nodo HTTP Request (POST, header `x-api-key`, body `{ "email": "{{ $json.email }}" }`) justo después del paso que ya arma el anuncio de Slack — así una sola detección de baja dispara tanto el aviso como el registro en Supabase.
