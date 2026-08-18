@@ -16,14 +16,16 @@ Web app de analítica para la publicación de Substack **Perpetuo**. Next.js (Ap
 
 ## Modelo de datos
 
-Ver [`supabase/schema.sql`](./supabase/schema.sql) y [`supabase/migrations/0002_subscribers.sql`](./supabase/migrations/0002_subscribers.sql). Resumen:
+Ver [`supabase/schema.sql`](./supabase/schema.sql) y las migraciones en [`supabase/migrations/`](./supabase/migrations/) (pega cada archivo nuevo en Supabase → SQL Editor → Run, en orden). Resumen:
 
 - `posts`: identidad estable de cada post (slug derivado del título; la URL es opcional).
 - `metric_snapshots`: una fila nueva por post en cada carga semanal — nunca se sobrescribe el histórico.
 - `current_metrics` (vista): el snapshot más reciente de cada post.
 - `subscribers`: identidad de cada suscriptor (email) + atributos descriptivos (tipo, plan, fechas de alta/baja, país, preferencias de sección) que se actualizan en cada carga.
 - `subscriber_snapshots`: las métricas cuantitativas de actividad (aperturas, clics, views, comentarios, shares, revenue) por carga — mismo patrón de histórico que `metric_snapshots`.
-- `current_subscriber_metrics` (vista): el snapshot más reciente de cada suscriptor, con open rate y click rate ya calculados.
+- `current_subscriber_metrics` (vista): el snapshot más reciente de cada suscriptor, con open rate y click rate ya calculados (`0003_fix_open_rate_6mo.sql` corrige el open rate para que no pase de 100%).
+
+`0004_post_type_rename_and_backfill.sql` renombra "321 Editorial" a "El Creativo" en los posts ya cargados y completa el `post_type` de los que quedaron sin tipo, usando el calendario editorial fijo (lunes = Estelar, miércoles = Anteojos Editorial, viernes = El Creativo — ver `lib/post-types.ts`). Las cargas nuevas hacen lo mismo automáticamente cuando el CSV no trae `post_type`.
 
 ## Desarrollo local
 

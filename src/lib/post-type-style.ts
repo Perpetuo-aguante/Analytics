@@ -13,7 +13,7 @@ export const POST_TYPE_STYLE: Record<LeaderboardPostType, { color: string; shape
   Ensayo: { color: "#e87ba4", shape: "square" },
   Cuento: { color: "#eda100", shape: "triangle" },
   Poema: { color: "#1baf7a", shape: "diamond" },
-  "321 Editorial": { color: "#008300", shape: "cross" },
+  "El Creativo": { color: "#008300", shape: "cross" },
   "Anteojos Editorial": { color: "#4a3aa7", shape: "star" },
   Estelar: { color: "#2a78d6", shape: "circle" },
   "Foto-Ensayo": { color: "#e34948", shape: "ring" },
