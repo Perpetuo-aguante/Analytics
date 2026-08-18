@@ -13,7 +13,15 @@ import { parseUploadedFile } from "@/lib/parse";
 import { suggestMapping, type FieldKey } from "@/lib/columns";
 import { cellToString, parseDateValue, parseIntValue, parseRateValue, slugify } from "@/lib/format";
 import { similarity } from "@/lib/dedupe";
+import { inferPostTypeFromDate } from "@/lib/post-types";
 import { createAdminClient } from "@/lib/supabase/server";
+
+// Umbral de similitud (0-1) para considerar dos posts "el mismo post" al
+// resolver el slug de identidad (ver resolveExistingSlug) y al buscar
+// duplicados ya cargados (ver findDuplicateCandidates, más abajo). 0.82
+// detecta variantes como slug-crudo-vs-título-real sin generar demasiados
+// falsos positivos entre títulos legítimamente distintos.
+const DUPLICATE_SIMILARITY_THRESHOLD = 0.82;
 
 export type LoginState = { error: string | null };
 
@@ -100,6 +108,36 @@ export async function commitImport(input: {
       published_at?: string | null;
     };
 
+    const supabase = createAdminClient();
+
+    // Slugs de los posts que ya existen en la base, para poder reconocer un
+    // post que ya conocíamos aunque este archivo lo traiga con el título en
+    // otro formato (ej. slug crudo de Substack en cargas viejas vs. título en
+    // lenguaje natural en las nuevas — ver dedupe.ts). Sin esto, un cambio de
+    // formato entre cargas genera una fila nueva por post en vez de
+    // actualizar la existente.
+    const { data: existingPostsForMatch, error: existingMatchError } = await supabase
+      .from("posts")
+      .select("slug");
+    if (existingMatchError) {
+      return { data: null, error: `No se pudo leer posts existentes: ${existingMatchError.message}` };
+    }
+    const knownSlugs = (existingPostsForMatch ?? []).map((p) => p.slug as string);
+    const knownSlugSet = new Set(knownSlugs);
+    // Slugs ya resueltos dentro de esta misma carga, para tampoco duplicar
+    // internamente si el mismo post aparece más de una vez en el archivo.
+    const batchSlugs: string[] = [];
+
+    function resolveExistingSlug(candidateSlug: string): string {
+      if (knownSlugSet.has(candidateSlug) || batchSlugs.includes(candidateSlug)) return candidateSlug;
+      let best: { slug: string; sim: number } | null = null;
+      for (const slug of [...knownSlugs, ...batchSlugs]) {
+        const sim = similarity(candidateSlug, slug);
+        if (sim >= DUPLICATE_SIMILARITY_THRESHOLD && (!best || sim > best.sim)) best = { slug, sim };
+      }
+      return best ? best.slug : candidateSlug;
+    }
+
     const postsBySlug = new Map<string, PostRow>();
     const snapshotsBySlug = new Map<string, Record<string, unknown>>();
 
@@ -107,11 +145,29 @@ export async function commitImport(input: {
       const title = cellToString(row[mapping.title]);
       if (!title) continue; // fila sin identidad de post: se ignora
 
-      const slug = slugify(title);
+      const slug = resolveExistingSlug(slugify(title));
+      if (!batchSlugs.includes(slug)) batchSlugs.push(slug);
+
+      // El título siempre se guarda con el valor de esta carga (la más
+      // reciente "pisa" al histórico, mismo criterio que author/post_type
+      // más abajo) — así un post que cambió de formato de título entre
+      // cargas termina mostrando el título nuevo, no el viejo duplicado.
       const post: PostRow = { slug, title };
       if (mapping.author) post.author = cellToString(row[mapping.author]);
-      if (mapping.post_type) post.post_type = cellToString(row[mapping.post_type]);
-      if (mapping.published_at) post.published_at = parseDateValue(row[mapping.published_at]);
+
+      const publishedAt = mapping.published_at ? parseDateValue(row[mapping.published_at]) : null;
+      if (mapping.published_at) post.published_at = publishedAt;
+
+      // Tipo de post: se usa el valor del CSV si vino; si no (cada vez más
+      // frecuente en los exports recientes), se intenta inferir a partir del
+      // día de la semana de published_at (ver inferPostTypeFromDate). Si
+      // ninguno de los dos da un valor, se omite el campo del todo para no
+      // pisar con null un post_type que el post ya tenía de una carga
+      // anterior.
+      const explicitPostType = mapping.post_type ? cellToString(row[mapping.post_type]) : null;
+      const postType = explicitPostType ?? inferPostTypeFromDate(publishedAt);
+      if (postType) post.post_type = postType;
+
       postsBySlug.set(slug, post);
 
       snapshotsBySlug.set(slug, {
@@ -130,18 +186,12 @@ export async function commitImport(input: {
       return { data: null, error: "Ninguna fila tiene título válido." };
     }
 
-    const supabase = createAdminClient();
     const postsPayload = Array.from(postsBySlug.values());
-    const slugs = postsPayload.map((p) => p.slug);
-
-    const { data: existing, error: existingError } = await supabase
-      .from("posts")
-      .select("slug")
-      .in("slug", slugs);
-    if (existingError) {
-      return { data: null, error: `No se pudo leer posts existentes: ${existingError.message}` };
-    }
-    const existingSlugs = new Set((existing ?? []).map((p) => p.slug as string));
+    // Ya tenemos todos los slugs existentes de la consulta de arriba
+    // (existingPostsForMatch) — no hace falta volver a pedirlos. Solo nos
+    // interesa cuántos de los slugs de ESTA carga ya existían, para el
+    // resumen de creados/actualizados.
+    const existingSlugsInBatch = postsPayload.filter((p) => knownSlugSet.has(p.slug)).length;
 
     const { data: upsertedPosts, error: upsertError } = await supabase
       .from("posts")
@@ -168,8 +218,8 @@ export async function commitImport(input: {
 
     return {
       data: {
-        postsCreados: postsPayload.length - existingSlugs.size,
-        postsActualizados: existingSlugs.size,
+        postsCreados: postsPayload.length - existingSlugsInBatch,
+        postsActualizados: existingSlugsInBatch,
         snapshots: snapshotsPayload.length,
       },
       error: null,
@@ -266,11 +316,6 @@ export type DuplicateCandidate = {
   postB: { id: string; slug: string; title: string; publishedAt: string | null };
   similarity: number;
 };
-
-// Umbral de similitud (0-1) para considerar dos posts "posibles duplicados".
-// 0.82 detecta variantes como slug-crudo-vs-título-real sin generar
-// demasiados falsos positivos entre títulos legítimamente distintos.
-const DUPLICATE_SIMILARITY_THRESHOLD = 0.82;
 
 // Compara todos los posts entre sí por similitud de slug/título y devuelve
 // los pares que probablemente sean el mismo post cargado dos veces (ver
