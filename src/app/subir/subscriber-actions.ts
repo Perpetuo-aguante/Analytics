@@ -13,35 +13,55 @@ import {
 } from "@/lib/format";
 import { createAdminClient } from "@/lib/supabase/server";
 
+// A diferencia del Uploader de posts (que sí necesita rows en el cliente
+// para la pantalla de mapeo y la vista previa de la tabla), acá la vista
+// previa solo muestra un conteo, así que no hace falta viajar con las
+// filas completas: un export de Substack con miles de suscriptores tiene
+// ~40 columnas por fila, y ese JSON pesa varias veces más que el archivo
+// original (que va comprimido si es .xlsx, o sin repetir los nombres de
+// columna en cada fila si es .csv). Devolver `rows` acá y mandarlas de
+// vuelta en commitSubscriberImport superaba el límite de tamaño de body de
+// las Server Actions con listas grandes — de ahí que el archivo se vuelva
+// a parsear server-side en el commit en lugar de reenviar las filas ya
+// parseadas.
 export type SubscriberParsePreview = {
   headers: string[];
-  rows: Record<string, unknown>[];
   rowCount: number;
   emailColumnFound: boolean;
 };
+
+type SubscriberFileResult =
+  | { ok: true; headers: string[]; rows: Record<string, unknown>[] }
+  | { ok: false; error: string };
+
+async function readAndValidateSubscriberFile(formData: FormData): Promise<SubscriberFileResult> {
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, error: "Selecciona un archivo .xlsx o .csv." };
+  }
+  const { headers, rows } = await parseUploadedFile(file);
+  if (headers.length === 0) {
+    return { ok: false, error: "No se detectaron columnas en el archivo." };
+  }
+  if (rows.length === 0) {
+    return { ok: false, error: "El archivo no tiene filas de datos." };
+  }
+  const columns = resolveSubscriberColumns(headers);
+  if (!columns.email) {
+    return { ok: false, error: "No se encontró la columna \"Email\" en el archivo." };
+  }
+  return { ok: true, headers, rows };
+}
 
 export async function parseSubscriberFile(
   formData: FormData
 ): Promise<{ data: SubscriberParsePreview | null; error: string | null }> {
   try {
     await requireSession();
-    const file = formData.get("file");
-    if (!(file instanceof File) || file.size === 0) {
-      return { data: null, error: "Selecciona un archivo .xlsx o .csv." };
-    }
-    const { headers, rows } = await parseUploadedFile(file);
-    if (headers.length === 0) {
-      return { data: null, error: "No se detectaron columnas en el archivo." };
-    }
-    if (rows.length === 0) {
-      return { data: null, error: "El archivo no tiene filas de datos." };
-    }
-    const columns = resolveSubscriberColumns(headers);
-    if (!columns.email) {
-      return { data: null, error: "No se encontró la columna \"Email\" en el archivo." };
-    }
+    const result = await readAndValidateSubscriberFile(formData);
+    if (!result.ok) return { data: null, error: result.error };
     return {
-      data: { headers, rows, rowCount: rows.length, emailColumnFound: true },
+      data: { headers: result.headers, rowCount: result.rows.length, emailColumnFound: true },
       error: null,
     };
   } catch (err) {
@@ -82,22 +102,20 @@ function describeError(error: { message?: string; code?: string } | null | undef
   return error.message?.trim() || (error.code ? `Error ${error.code}.` : JSON.stringify(error));
 }
 
-export async function commitSubscriberImport(input: {
-  rows: Record<string, unknown>[];
-  headers: string[];
-  snapshotDate: string;
-}): Promise<{ data: SubscriberImportSummary | null; error: string | null }> {
+export async function commitSubscriberImport(
+  formData: FormData
+): Promise<{ data: SubscriberImportSummary | null; error: string | null }> {
   try {
     await requireSession();
-    const { rows, headers, snapshotDate } = input;
-    const cols = resolveSubscriberColumns(headers);
-
-    if (!cols.email) {
-      return { data: null, error: "No se encontró la columna \"Email\" en el archivo." };
-    }
+    const snapshotDate = String(formData.get("snapshotDate") ?? "");
     if (!snapshotDate) {
       return { data: null, error: "Falta la fecha del snapshot." };
     }
+
+    const parsed = await readAndValidateSubscriberFile(formData);
+    if (!parsed.ok) return { data: null, error: parsed.error };
+    const { headers, rows } = parsed;
+    const cols = resolveSubscriberColumns(headers);
 
     type SubscriberRow = {
       email: string;

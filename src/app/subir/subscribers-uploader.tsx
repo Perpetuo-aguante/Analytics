@@ -13,6 +13,7 @@ import {
 // lib/subscriber-columns.ts), así que solo se confirma la fecha del
 // snapshot antes de importar.
 export function SubscribersUploader() {
+  const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<SubscriberParsePreview | null>(null);
   const [snapshotDate, setSnapshotDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [summary, setSummary] = useState<SubscriberImportSummary | null>(null);
@@ -20,14 +21,15 @@ export function SubscribersUploader() {
   const [pending, startTransition] = useTransition();
 
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
+    const selected = event.target.files?.[0];
     event.target.value = "";
-    if (!file) return;
+    if (!selected) return;
     setError(null);
     setSummary(null);
     setPreview(null);
+    setFile(null);
     const formData = new FormData();
-    formData.set("file", file);
+    formData.set("file", selected);
     startTransition(async () => {
       const result = await parseSubscriberFile(formData);
       if (result.error || !result.data) {
@@ -35,23 +37,28 @@ export function SubscribersUploader() {
         return;
       }
       setPreview(result.data);
+      setFile(selected);
     });
   }
 
   function handleConfirm() {
-    if (!preview) return;
+    // El archivo se vuelve a mandar (y se reparsea server-side) en lugar de
+    // reenviar las filas ya parseadas: con miles de suscriptores, ese JSON
+    // pesa mucho más que el archivo original y superaba el límite de tamaño
+    // de body de las Server Actions (ver subscriber-actions.ts).
+    if (!preview || !file) return;
     startTransition(async () => {
-      const result = await commitSubscriberImport({
-        rows: preview.rows,
-        headers: preview.headers,
-        snapshotDate,
-      });
+      const formData = new FormData();
+      formData.set("file", file);
+      formData.set("snapshotDate", snapshotDate);
+      const result = await commitSubscriberImport(formData);
       if (result.error || !result.data) {
         setError(result.error ?? "No se pudo importar el archivo.");
         return;
       }
       setSummary(result.data);
       setPreview(null);
+      setFile(null);
     });
   }
 
@@ -59,6 +66,7 @@ export function SubscribersUploader() {
     setSummary(null);
     setError(null);
     setPreview(null);
+    setFile(null);
   }
 
   return (
