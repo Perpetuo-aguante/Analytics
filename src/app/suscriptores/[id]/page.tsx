@@ -53,39 +53,39 @@ export default async function SubscriberDetailPage({ params }: { params: Promise
   const activityPoints: ChartPoint[] = history.map((h) => ({ date: h.snapshot_date, value: h.activity }));
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-16">
-      <Link href="/suscriptores/lista" className="text-sm text-muted hover:underline">
+    <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-12">
+      <Link href="/suscriptores/lista" className="text-sm text-ink-muted hover:underline">
         ← Volver a la lista
       </Link>
 
-      <h1 className="mt-4 font-serif text-3xl font-semibold">{subscriber.name || subscriber.email}</h1>
-      {subscriber.name && <p className="mt-1 text-sm text-muted">{subscriber.email}</p>}
-      <p className="mt-2 text-sm text-muted">
+      <h1 className="mt-4 font-display text-3xl font-semibold">{subscriber.name || subscriber.email}</h1>
+      {subscriber.name && <p className="mt-1 text-sm text-ink-muted">{subscriber.email}</p>}
+      <p className="mt-2 text-sm text-ink-muted">
         {subscriber.type ?? "—"} · {subscriber.country || "sin país"}
         {subscriber.state_province ? ` (${subscriber.state_province})` : ""}
       </p>
 
-      <div className="mt-6 rounded-2xl border border-border p-5 text-sm">
+      <div className="mt-6 panel p-5 text-sm">
         <p>
           Suscriptor desde <span className="font-medium">{subscriber.start_date ?? "—"}</span> (
           {formatTenure(subscriber.tenureDays)})
         </p>
         {subscriber.cancel_date && <p className="mt-1 text-red-700">Canceló el {subscriber.cancel_date}</p>}
         {subscriber.first_paid_date && (
-          <p className="mt-1 text-muted">
+          <p className="mt-1 text-ink-muted">
             Primer pago: {subscriber.first_paid_date}
             {subscriber.stripe_plan ? ` · ${subscriber.stripe_plan}` : ""}
           </p>
         )}
-        {subscriber.expiration_date && <p className="mt-1 text-muted">Vence: {subscriber.expiration_date}</p>}
+        {subscriber.expiration_date && <p className="mt-1 text-ink-muted">Vence: {subscriber.expiration_date}</p>}
       </div>
 
       {subscriber.sections && subscriber.sections.length > 0 && (
         <div className="mt-6">
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">Preferencias</h2>
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-muted">Preferencias</h2>
           <div className="flex flex-wrap gap-2">
             {subscriber.sections.map((s) => (
-              <span key={s} className="rounded-full border border-border px-3 py-1 text-xs text-muted">
+              <span key={s} className="rounded-full border border-line px-3 py-1 text-xs text-ink-muted">
                 {s}
               </span>
             ))}
@@ -95,10 +95,10 @@ export default async function SubscriberDetailPage({ params }: { params: Promise
 
       <section className="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-4">
         {tiles.map((tile) => (
-          <div key={tile.label} className="rounded-2xl border border-border p-4">
-            <p className="text-xs text-muted">{tile.label}</p>
-            <p className="mt-1 font-serif text-xl font-semibold">{tile.value}</p>
-            {tile.detail && <p className="mt-0.5 text-xs text-muted">{tile.detail}</p>}
+          <div key={tile.label} className="panel p-4">
+            <p className="text-xs text-ink-muted">{tile.label}</p>
+            <p className="mt-1 font-display text-xl font-semibold">{tile.value}</p>
+            {tile.detail && <p className="mt-0.5 text-xs text-ink-muted">{tile.detail}</p>}
           </div>
         ))}
       </section>
@@ -106,16 +106,16 @@ export default async function SubscriberDetailPage({ params }: { params: Promise
       {history.length > 1 ? (
         <div className="mt-12 space-y-12">
           <section>
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">Open rate en el tiempo</h2>
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-muted">Open rate en el tiempo</h2>
             <LineChart points={openRatePoints} percent />
           </section>
           <section>
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">Actividad en el tiempo</h2>
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-muted">Actividad en el tiempo</h2>
             <LineChart points={activityPoints} />
           </section>
         </div>
       ) : (
-        <p className="mt-12 text-sm text-muted">
+        <p className="mt-12 text-sm text-ink-muted">
           Todavía no hay más de una carga para este suscriptor — subí otro export para ver su evolución.
         </p>
       )}

@@ -1,6 +1,8 @@
+// formatNumber se usa siempre sobre conteos (views, suscriptores, posts), así
+// que redondea: el promedio de views es "5.021", no "5020,5".
 export function formatNumber(value: number | null | undefined): string {
   if (value == null) return "—";
-  return value.toLocaleString("es");
+  return value.toLocaleString("es", { maximumFractionDigits: 0 });
 }
 
 export function formatPercent(value: number | null | undefined): string {

@@ -75,14 +75,14 @@ export default async function SuscriptoresListaPage({ searchParams }: { searchPa
   }
 
   const inputClass =
-    "rounded-full border border-border bg-white/50 px-4 py-2 text-sm outline-none focus:border-accent";
+    "rounded-full border border-line bg-white/50 px-4 py-2 text-sm outline-none focus:border-blue";
 
   return (
-    <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-16">
+    <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-12">
       <header className="mb-8">
-        <p className="text-sm uppercase tracking-wide text-muted">Perpetuo</p>
-        <h1 className="mt-1 font-serif text-3xl font-semibold">Suscriptores</h1>
-        <p className="mt-2 text-sm text-muted">Buscá, filtrá y ordená la base completa de suscriptores.</p>
+        <p className="text-sm uppercase tracking-wide text-ink-muted">Perpetuo</p>
+        <h1 className="mt-1 font-display text-3xl font-semibold">Suscriptores</h1>
+        <p className="mt-2 text-sm text-ink-muted">Buscá, filtrá y ordená la base completa de suscriptores.</p>
       </header>
 
       <SubscriberTabs active="lista" />
@@ -128,7 +128,7 @@ export default async function SuscriptoresListaPage({ searchParams }: { searchPa
             <option value="activo">Solo activos</option>
             <option value="cancelado">Solo cancelados</option>
           </select>
-          <label className="flex items-center gap-2 text-sm text-muted">
+          <label className="flex items-center gap-2 text-sm text-ink-muted">
             Actividad mín.
             <input
               type="number"
@@ -151,22 +151,22 @@ export default async function SuscriptoresListaPage({ searchParams }: { searchPa
             Filtrar
           </button>
           {hasFilters && (
-            <Link href="/suscriptores/lista" className="text-sm text-muted underline hover:text-foreground">
+            <Link href="/suscriptores/lista" className="text-sm text-ink-muted underline hover:text-ink">
               Limpiar filtros
             </Link>
           )}
         </div>
       </form>
 
-      <p className="mb-4 text-sm text-muted">
+      <p className="mb-4 text-sm text-ink-muted">
         {allRows.length.toLocaleString("es")} {allRows.length === 1 ? "suscriptor coincide" : "suscriptores coinciden"}{" "}
         con los filtros.
       </p>
 
-      <div className="overflow-x-auto rounded-2xl border border-border">
+      <div className="panel overflow-x-auto">
         <table className="w-full min-w-[760px] border-collapse text-sm">
           <thead>
-            <tr className="border-b border-border text-left text-muted">
+            <tr className="border-b border-line text-left text-ink-muted">
               <th className="whitespace-nowrap px-4 py-3 font-medium">Email</th>
               <th className="whitespace-nowrap px-4 py-3 font-medium">Nombre</th>
               <th className="whitespace-nowrap px-4 py-3 font-medium">Tipo</th>
@@ -179,7 +179,7 @@ export default async function SuscriptoresListaPage({ searchParams }: { searchPa
           </thead>
           <tbody>
             {pageRows.map((row) => (
-              <tr key={row.subscriber_id} className="border-b border-border/60 last:border-0 hover:bg-accent/5">
+              <tr key={row.subscriber_id} className="border-b border-line/60 last:border-0 hover:bg-blue/5">
                 <td className="whitespace-nowrap px-4 py-3">
                   <Link href={`/suscriptores/${row.subscriber_id}`} className="hover:underline">
                     {row.email}
@@ -198,7 +198,7 @@ export default async function SuscriptoresListaPage({ searchParams }: { searchPa
             ))}
             {pageRows.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-sm text-muted">
+                <td colSpan={8} className="px-4 py-8 text-center text-sm text-ink-muted">
                   No hay suscriptores que coincidan con la búsqueda.
                 </td>
               </tr>
@@ -216,7 +216,7 @@ export default async function SuscriptoresListaPage({ searchParams }: { searchPa
           >
             ← Anterior
           </Link>
-          <span className="text-muted">
+          <span className="text-ink-muted">
             Página {currentPage} de {totalPages}
           </span>
           <Link

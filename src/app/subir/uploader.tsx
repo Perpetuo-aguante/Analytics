@@ -77,7 +77,7 @@ export function Uploader() {
     <div className="space-y-8">
       {!preview && !summary && (
         <div>
-          <label className="block cursor-pointer rounded-2xl border border-dashed border-border px-6 py-10 text-center text-sm text-muted transition-colors hover:border-accent hover:text-foreground">
+          <label className="block cursor-pointer rounded-2xl border border-dashed border-line px-6 py-10 text-center text-sm text-ink-muted transition-colors hover:border-blue hover:text-ink">
             {pending ? "Leyendo archivo…" : "Elige un archivo .xlsx o .csv"}
             <input
               type="file"
@@ -95,10 +95,10 @@ export function Uploader() {
       {preview && mapping && (
         <div className="space-y-8">
           <div>
-            <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-muted">
+            <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-ink-muted">
               1. Revisa el mapeo de columnas
             </h2>
-            <p className="mb-4 text-sm text-muted">
+            <p className="mb-4 text-sm text-ink-muted">
               Detectamos {preview.rowCount} filas. Confirma qué columna del archivo corresponde a cada campo.
             </p>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -107,7 +107,7 @@ export function Uploader() {
                 const unresolved = required && !mapping[field];
                 return (
                   <label key={field} className="block text-sm">
-                    <span className={unresolved ? "text-red-600" : "text-muted"}>
+                    <span className={unresolved ? "text-red-600" : "text-ink-muted"}>
                       {FIELD_LABELS[field]}
                       {required ? " *" : ""}
                     </span>
@@ -115,7 +115,7 @@ export function Uploader() {
                       value={mapping[field] ?? NONE}
                       onChange={(e) => handleMappingChange(field, e.target.value)}
                       className={`mt-1 w-full rounded border bg-transparent px-3 py-2 ${
-                        unresolved ? "border-red-400" : "border-border"
+                        unresolved ? "border-red-400" : "border-line"
                       }`}
                     >
                       <option value={NONE}>— no aplica —</option>
@@ -132,22 +132,22 @@ export function Uploader() {
           </div>
 
           <div>
-            <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-muted">
+            <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-ink-muted">
               2. Fecha de este snapshot
             </h2>
-            <p className="mb-3 text-sm text-muted">
+            <p className="mb-3 text-sm text-ink-muted">
               Se guarda igual para todas las filas de esta carga (normalmente, hoy).
             </p>
             <input
               type="date"
               value={snapshotDate}
               onChange={(e) => setSnapshotDate(e.target.value)}
-              className="rounded border border-border bg-transparent px-3 py-2 text-sm"
+              className="rounded border border-line bg-transparent px-3 py-2 text-sm"
             />
           </div>
 
           <div>
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-muted">
               3. Vista previa (primeras 5 filas)
             </h2>
             <PreviewTable rows={preview.rows.slice(0, 5)} mapping={mapping} />
@@ -167,7 +167,7 @@ export function Uploader() {
             >
               {pending ? "Importando…" : "Confirmar e importar"}
             </button>
-            <button onClick={handleReset} disabled={pending} className="text-sm text-muted underline">
+            <button onClick={handleReset} disabled={pending} className="text-sm text-ink-muted underline">
               Cancelar
             </button>
           </div>
@@ -175,12 +175,12 @@ export function Uploader() {
       )}
 
       {summary && (
-        <div className="space-y-4 rounded-2xl border border-border px-6 py-6">
+        <div className="panel space-y-4 px-6 py-6">
           <p className="text-sm">
             Listo. {summary.postsCreados} posts nuevos, {summary.postsActualizados} actualizados,{" "}
             {summary.snapshots} snapshots guardados.
           </p>
-          <button onClick={handleReset} className="text-sm font-medium text-accent underline underline-offset-2">
+          <button onClick={handleReset} className="text-sm font-medium text-blue underline underline-offset-2">
             Cargar otro archivo
           </button>
         </div>
@@ -195,7 +195,7 @@ function PreviewTable({ rows, mapping }: { rows: Record<string, unknown>[]; mapp
     <div className="overflow-x-auto">
       <table className="w-full min-w-[600px] border-collapse text-sm">
         <thead>
-          <tr className="border-b border-border text-left text-muted">
+          <tr className="border-b border-line text-left text-ink-muted">
             {displayFields.map((field) => (
               <th key={field} className="whitespace-nowrap px-2 py-2 font-medium">
                 {FIELD_LABELS[field]}
@@ -205,7 +205,7 @@ function PreviewTable({ rows, mapping }: { rows: Record<string, unknown>[]; mapp
         </thead>
         <tbody>
           {rows.map((row, i) => (
-            <tr key={i} className="border-b border-border/60">
+            <tr key={i} className="border-b border-line/60">
               {displayFields.map((field) => (
                 <td key={field} className="whitespace-nowrap px-2 py-2">
                   {formatPreviewCell(field, row[mapping[field] as string])}

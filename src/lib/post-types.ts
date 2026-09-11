@@ -74,3 +74,41 @@ export function inferPostTypeFromDate(publishedAt: string | null | undefined): L
   if (Number.isNaN(date.getTime())) return null;
   return WEEKDAY_POST_TYPE[date.getUTCDay()] ?? null;
 }
+
+// ── Slugs para la URL ────────────────────────────────────────────────────
+// Los filtros viajan por querystring (ver lib/filters.ts). Usar el nombre
+// canónico tal cual ("Anteojos Editorial", "Foto-Ensayo") obligaría a
+// encodear espacios y acentos en cada enlace; el slug mantiene la URL legible
+// y estable aunque algún día se renombre la etiqueta visible.
+const POST_TYPE_SLUGS: Record<LeaderboardPostType, string> = {
+  Ensayo: "ensayo",
+  Cuento: "cuento",
+  Poema: "poema",
+  "El Creativo": "el-creativo",
+  "Anteojos Editorial": "anteojos-editorial",
+  Estelar: "estelar",
+  "Foto-Ensayo": "foto-ensayo",
+};
+
+const POST_TYPE_BY_SLUG = new Map<string, LeaderboardPostType>(
+  Object.entries(POST_TYPE_SLUGS).map(([type, slug]) => [slug, type as LeaderboardPostType])
+);
+
+export function postTypeSlug(type: LeaderboardPostType): string {
+  return POST_TYPE_SLUGS[type];
+}
+
+export function postTypeFromSlug(slug: string): LeaderboardPostType | null {
+  return POST_TYPE_BY_SLUG.get(slug.toLowerCase()) ?? null;
+}
+
+// Etiqueta corta para los chips de filtro, donde el ancho importa. Solo
+// difiere del nombre canónico cuando este es demasiado largo para un chip.
+const POST_TYPE_SHORT_LABELS: Partial<Record<LeaderboardPostType, string>> = {
+  "Anteojos Editorial": "Anteojos",
+  "Foto-Ensayo": "Foto",
+};
+
+export function postTypeShortLabel(type: LeaderboardPostType): string {
+  return POST_TYPE_SHORT_LABELS[type] ?? type;
+}

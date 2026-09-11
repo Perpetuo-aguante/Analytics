@@ -1,89 +1,92 @@
 import Link from "next/link";
-import { getLeaderboards, getLeaderboardsByType } from "@/lib/queries";
-import { formatNumber, formatPercent } from "@/lib/display";
-import { LEADERBOARD_POST_TYPES } from "@/lib/post-types";
-import type { CurrentMetric } from "@/lib/supabase/types";
+import { Suspense } from "react";
+import { FilterBar } from "@/components/filter-bar";
+import { MetricTabs } from "@/components/metric-tabs";
+import { PageHeader } from "@/components/page-header";
+import { RankingBoard } from "@/components/ranking-board";
+import { getFilteredMetrics, leaderboard, leaderboardsByType } from "@/lib/queries";
+import { parseFilters, describeFilters, type FilterSearchParams } from "@/lib/filters";
+import { parseMetric } from "@/lib/metrics";
+import { postTypeStyle } from "@/lib/post-type-style";
 
-// Sin esto, Next intentaría generar esta página una sola vez en el build y
-// dejarla fija; queremos que consulte Supabase en cada visita.
+// El recorte relativo ("últimos 30 días") se resuelve contra la fecha de hoy
+// en cada request, así que esta página nunca se puede prerenderizar.
 export const dynamic = "force-dynamic";
 
-type SearchParams = { vista?: string };
+type SearchParams = FilterSearchParams & { metrica?: string; vista?: string };
 
 export default async function RankingsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const { vista } = await searchParams;
-  const showAll = vista === "todos";
-  const [{ bySubscribers, byViews, byEngagement }, byType] = await Promise.all([
-    getLeaderboards(showAll ? null : 10),
-    getLeaderboardsByType(showAll ? null : 5),
-  ]);
+  const params = await searchParams;
+  const filters = parseFilters(params);
+  const metric = parseMetric(params.metrica);
+  const showAll = params.vista === "todos";
 
-  return (
-    <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-16">
-      <header className="mb-12">
-        <p className="text-sm uppercase tracking-wide text-muted">Perpetuo</p>
-        <h1 className="mt-1 font-serif text-3xl font-semibold">Rankings</h1>
-        <p className="mt-2 text-sm text-muted">Basado en el snapshot más reciente de cada post.</p>
-      </header>
+  const rows = await getFilteredMetrics(filters);
+  const global = leaderboard(rows, metric, showAll ? null : 12);
+  const byType = leaderboardsByType(rows, metric, showAll ? null : 5);
 
-      <div className="mb-8 flex gap-2 text-sm">
-        <Link href="/rankings" data-active={!showAll} className="btn-secondary">
-          Top 10
-        </Link>
-        <Link href="/rankings?vista=todos" data-active={showAll} className="btn-secondary">
-          Ver todos
-        </Link>
-      </div>
-
-      <div className="grid gap-12 sm:grid-cols-3">
-        <Leaderboard title="Nuevos suscriptores" rows={bySubscribers} metric="new_subscribers" format={formatNumber} scroll={showAll} />
-        <Leaderboard title="Views" rows={byViews} metric="views" format={formatNumber} scroll={showAll} />
-        <Leaderboard title="Engagement" rows={byEngagement} metric="engagement" format={formatPercent} scroll={showAll} />
-      </div>
-
-      <section className="mt-16">
-        <h2 className="mb-1 font-serif text-xl font-semibold">Ranking por tipo de publicación</h2>
-        <p className="mb-8 text-sm text-muted">Los posts con más views dentro de cada tipo.</p>
-        <div className="grid gap-12 sm:grid-cols-2 lg:grid-cols-3">
-          {LEADERBOARD_POST_TYPES.map((type) => (
-            <Leaderboard key={type} title={type} rows={byType[type]} metric="views" format={formatNumber} scroll={showAll} />
-          ))}
-        </div>
-      </section>
-    </main>
+  // El toggle "ver todos" se construye desde los params entrantes para que
+  // conserve el filtro y la métrica que ya estaban aplicados.
+  const toggleParams = new URLSearchParams(
+    Object.entries(params).filter((entry): entry is [string, string] => typeof entry[1] === "string")
   );
-}
+  if (showAll) toggleParams.delete("vista");
+  else toggleParams.set("vista", "todos");
+  const toggleHref = toggleParams.toString() ? `/rankings?${toggleParams.toString()}` : "/rankings";
 
-function Leaderboard({
-  title,
-  rows,
-  metric,
-  format,
-  scroll,
-}: {
-  title: string;
-  rows: CurrentMetric[];
-  metric: keyof CurrentMetric;
-  format: (value: number | null | undefined) => string;
-  scroll?: boolean;
-}) {
   return (
-    <section>
-      <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-muted">{title}</h2>
-      <ol className={`space-y-3 ${scroll ? "max-h-[32rem] overflow-y-auto pr-2" : ""}`}>
-        {rows.map((row, i) => (
-          <li key={row.post_id} className="flex items-baseline justify-between gap-3">
-            <span className="text-sm">
-              <span className="mr-2 text-muted">{i + 1}.</span>
-              <Link href={`/post/${row.slug}`} className="hover:underline">
-                {row.title}
-              </Link>
-            </span>
-            <span className="whitespace-nowrap text-sm font-medium">{format(row[metric] as number | null)}</span>
-          </li>
-        ))}
-        {rows.length === 0 && <p className="text-sm text-muted">Sin datos todavía.</p>}
-      </ol>
-    </section>
+    <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">
+      <PageHeader
+        title="Rankings"
+        description="Qué pegó mejor. Elige el recorte de fechas y las secciones arriba, y la métrica aquí abajo: los rankings de toda la página se recalculan contra lo mismo."
+        scope={describeFilters(filters)}
+      />
+
+      <Suspense fallback={<div className="mb-8 h-40" />}>
+        <FilterBar filters={filters} />
+        <MetricTabs active={metric.key} label="Rankear por" />
+      </Suspense>
+
+      <div className="mb-6 flex justify-end">
+        <Link href={toggleHref} className="chip">
+          {showAll ? "Ver solo el top" : "Ver la lista completa"}
+        </Link>
+      </div>
+
+      {rows.length === 0 ? (
+        <p className="panel p-8 text-sm text-ink-muted">
+          Ningún post cae dentro de este recorte. Prueba a ampliar el rango de fechas o a quitar secciones.
+        </p>
+      ) : (
+        <>
+          <div className="rise rise-1 mb-10">
+            <RankingBoard
+              title={`Top global · ${metric.label}`}
+              subtitle={`${rows.length} ${rows.length === 1 ? "post" : "posts"} en el recorte`}
+              rows={global}
+              metric={metric}
+            />
+          </div>
+
+          <section className="rise rise-2">
+            <h2 className="mb-1 font-display text-xl font-semibold">Por sección</h2>
+            <p className="mb-5 text-sm text-ink-secondary">
+              El mismo ranking partido por tipo de publicación, para comparar cada sección contra sí misma.
+            </p>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {byType.map(({ postType, rows: typeRows }) => (
+                <RankingBoard
+                  key={postType}
+                  title={postType}
+                  rows={typeRows}
+                  metric={metric}
+                  accentColor={postTypeStyle(postType).color}
+                />
+              ))}
+            </div>
+          </section>
+        </>
+      )}
+    </main>
   );
 }

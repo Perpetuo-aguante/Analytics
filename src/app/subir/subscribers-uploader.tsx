@@ -73,7 +73,7 @@ export function SubscribersUploader() {
     <div className="space-y-8">
       {!preview && !summary && (
         <div>
-          <label className="block cursor-pointer rounded-2xl border border-dashed border-border px-6 py-10 text-center text-sm text-muted transition-colors hover:border-accent hover:text-foreground">
+          <label className="block cursor-pointer rounded-2xl border border-dashed border-line px-6 py-10 text-center text-sm text-ink-muted transition-colors hover:border-blue hover:text-ink">
             {pending ? "Leyendo archivo…" : "Elige el .csv/.xlsx de suscriptores de Substack"}
             <input
               type="file"
@@ -90,20 +90,20 @@ export function SubscribersUploader() {
 
       {preview && (
         <div className="space-y-6">
-          <p className="text-sm text-muted">
+          <p className="text-sm text-ink-muted">
             Detectamos {preview.rowCount.toLocaleString("es")} suscriptores en el archivo.
           </p>
 
           <div>
-            <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-muted">Fecha de este snapshot</h2>
-            <p className="mb-3 text-sm text-muted">
+            <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-ink-muted">Fecha de este snapshot</h2>
+            <p className="mb-3 text-sm text-ink-muted">
               Se guarda igual para todos los suscriptores de esta carga (normalmente, hoy).
             </p>
             <input
               type="date"
               value={snapshotDate}
               onChange={(e) => setSnapshotDate(e.target.value)}
-              className="rounded border border-border bg-transparent px-3 py-2 text-sm"
+              className="rounded border border-line bg-transparent px-3 py-2 text-sm"
             />
           </div>
 
@@ -111,7 +111,7 @@ export function SubscribersUploader() {
             <button onClick={handleConfirm} disabled={pending} className="btn-primary text-sm">
               {pending ? "Importando…" : "Confirmar e importar"}
             </button>
-            <button onClick={handleReset} disabled={pending} className="text-sm text-muted underline">
+            <button onClick={handleReset} disabled={pending} className="text-sm text-ink-muted underline">
               Cancelar
             </button>
           </div>
@@ -119,12 +119,12 @@ export function SubscribersUploader() {
       )}
 
       {summary && (
-        <div className="space-y-4 rounded-2xl border border-border px-6 py-6">
+        <div className="panel space-y-4 px-6 py-6">
           <p className="text-sm">
             Listo. {summary.subscribersCreados} suscriptores nuevos, {summary.subscribersActualizados} actualizados,{" "}
             {summary.snapshots} snapshots guardados.
           </p>
-          <button onClick={handleReset} className="text-sm font-medium text-accent underline underline-offset-2">
+          <button onClick={handleReset} className="text-sm font-medium text-blue underline underline-offset-2">
             Cargar otro archivo
           </button>
         </div>
