@@ -2,17 +2,45 @@
 
 Web app de analítica para la publicación de Substack **Perpetuo**. Next.js (App Router) + Supabase (Postgres) + Vercel.
 
+## Filtros
+
+Las cuatro secciones de posts (`/`, `/rankings`, `/dashboards`, `/promedios`) comparten
+una sola barra de filtros: chips de un clic para el rango de fechas (7 / 30 / 90 días,
+6 meses, 1 año, o fechas exactas) y para las secciones (multi-selección: Estelar,
+Anteojos Editorial, El Creativo, Ensayo, Cuento, Poema, Foto-Ensayo). El filtro recorta
+todo lo que hay debajo a la vez — tablas, rankings y charts — así que los números de una
+página nunca se contradicen entre sí.
+
+El estado vive en la URL, no en React (`lib/filters.ts`), lo que da tres cosas gratis:
+el filtro es compartible por enlace, el botón "atrás" del navegador deshace un filtro a
+la vez, y la nav lo arrastra al cambiar de sección. El rango se guarda **relativo**
+(`?rango=30`) y se resuelve a fechas absolutas en el servidor en cada request, para que
+un enlace compartido no se congele en las fechas del día que se copió.
+
 ## Funcionalidad
 
 - **`/subir`** (protegida por contraseña): carga semanal de un Excel/CSV con métricas por post (mapea columnas en español/inglés automáticamente) y carga del export de suscriptores de Substack (columnas fijas, sin mapeo manual).
-- **`/`**: búsqueda y filtros (tema, tipo de post) sobre el snapshot más reciente de cada post.
-- **`/rankings`**: leaderboards por nuevos suscriptores, views y engagement.
+- **`/`**: tabla ordenable por cualquier métrica (views, open rate, nuevos suscriptores, engagement) más búsqueda por título, sobre el snapshot más reciente de cada post.
+- **`/rankings`**: rankings en barras, globales y partidos por sección, por la métrica que elijas (views, open rate, nuevos suscriptores o engagement).
 - **`/post/[slug]`**: evolución de métricas de un post a través de los snapshots semanales.
 - **`/promedios`**: promedios agregados y media móvil histórica de las métricas de posts.
-- **`/dashboards`**: scatter y series temporales por sección.
+- **`/dashboards`**: scatter (open rate vs. views, views vs. nuevos suscriptores) y series temporales por sección.
 - **`/suscriptores`**: panel de analítica de suscriptores — KPIs, desgloses (tipo, sección, país, actividad, open rate, antigüedad), crecimiento neto acumulado y comparación gratis-vs-pago.
 - **`/suscriptores/lista`**: búsqueda, filtros y paginación sobre la base completa de suscriptores.
 - **`/suscriptores/[id]`**: ficha individual de un suscriptor (antigüedad, métricas de engagement, preferencias de sección, evolución si hay más de una carga).
+
+## Identidad visual
+
+Azul `#0f52a0` y crema `#f9f6f1` sobre un fondo de manchas granuladas que enmarcan la
+página (CSS y SVG, sin WebGL ni dependencias: ver la sección "Fondo granulado" de
+`app/globals.css`). Todo el movimiento respeta `prefers-reduced-motion`.
+
+Los siete tipos de post tienen un color y una forma fijos en todos los charts
+(`lib/post-type-style.ts`). La paleta está validada contra la superficie de la app:
+pasa banda de luminosidad, piso de croma, separación bajo daltonismo y piso de visión
+normal en la lista de pares adyacentes. Tres colores quedan bajo 3:1 de contraste, así
+que todos los charts que los usan llevan etiquetas directas y un "Ver como tabla" — el
+valor nunca depende de distinguir el color.
 
 ## Modelo de datos
 

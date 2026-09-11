@@ -17,13 +17,13 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
   const latestSnapshot = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-16">
-      <Link href="/" className="text-sm text-muted hover:underline">
+    <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-12">
+      <Link href="/" className="text-sm text-ink-muted hover:underline">
         ← Volver
       </Link>
-      <h1 className="mt-4 font-serif text-3xl font-semibold">{post.title}</h1>
-      {post.author && <p className="mt-1 text-sm text-muted">{post.author}</p>}
-      <p className="mt-2 text-sm text-muted">
+      <h1 className="mt-4 font-display text-3xl font-semibold">{post.title}</h1>
+      {post.author && <p className="mt-1 text-sm text-ink-muted">{post.author}</p>}
+      <p className="mt-2 text-sm text-ink-muted">
         {post.topic ?? "—"} · {post.post_type ?? "—"} · {post.published_at ?? "sin fecha"}
         {post.url && (
           <>
@@ -38,7 +38,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
       {isAdmin && <EditPostForm post={post} snapshot={latestSnapshot} />}
 
       {snapshots.length === 0 ? (
-        <p className="mt-12 text-sm text-muted">Todavía no hay snapshots de métricas para este post.</p>
+        <p className="mt-12 text-sm text-ink-muted">Todavía no hay snapshots de métricas para este post.</p>
       ) : (
         <div className="mt-12 space-y-12">
           <ChartBlock title="Views" snapshots={snapshots} field="views" />
@@ -71,8 +71,8 @@ function ChartBlock({
 
   return (
     <section>
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">{title}</h2>
-      {hasData ? <LineChart points={points} percent={percent} /> : <p className="text-sm text-muted">Sin datos.</p>}
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-muted">{title}</h2>
+      {hasData ? <LineChart points={points} percent={percent} /> : <p className="text-sm text-ink-muted">Sin datos.</p>}
     </section>
   );
 }

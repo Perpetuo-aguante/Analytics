@@ -40,7 +40,10 @@ export function SectionTimelineChart({
 
   const visibleSeries = series.filter((s) => !hidden.has(s.postType));
   const allValues = visibleSeries.flatMap((s) => s.points.map((p) => p.value).filter((v): v is number => v != null));
-  const yTicks = niceTicks(0, Math.max(1, ...allValues, 0), 4);
+  // Igual que en el scatter: el tope sale de los datos. Un piso de 1 mandaba
+  // el eje de open rate hasta 100% y dejaba todas las series aplastadas abajo.
+  const dataMax = allValues.length > 0 ? Math.max(...allValues) : 0;
+  const yTicks = niceTicks(0, dataMax > 0 ? dataMax : 1, 4);
   const yMax = yTicks[yTicks.length - 1];
   const yForValue = (v: number) => padding.top + innerHeight - (v / yMax) * innerHeight;
 
@@ -86,13 +89,13 @@ export function SectionTimelineChart({
   return (
     <div className="w-full">
       <div className="relative">
-        <svg ref={svgRef} viewBox={`0 0 ${width} ${height}`} className="w-full text-foreground" role="img" aria-labelledby={titleId}>
+        <svg ref={svgRef} viewBox={`0 0 ${width} ${height}`} className="w-full text-ink" role="img" aria-labelledby={titleId}>
           <title id={titleId}>Serie histórica por sección</title>
 
           {yTicks.map((t) => (
             <g key={t}>
-              <line x1={padding.left} y1={yForValue(t)} x2={width - padding.right} y2={yForValue(t)} stroke="currentColor" strokeOpacity={0.1} />
-              <text x={padding.left - 8} y={yForValue(t)} dy={3} fontSize={11} fill="currentColor" opacity={0.6} textAnchor="end">
+              <line x1={padding.left} y1={yForValue(t)} x2={width - padding.right} y2={yForValue(t)} stroke="var(--line)" />
+              <text x={padding.left - 8} y={yForValue(t)} dy={3} fontSize={11} fill="var(--axis-ink)" textAnchor="end">
                 {formatValue(t)}
               </text>
             </g>
@@ -108,7 +111,7 @@ export function SectionTimelineChart({
               <g key={s.postType}>
                 <path d={path} fill="none" stroke={style.color} strokeWidth={2} />
                 {coords.map((c, i) => (
-                  <circle key={i} cx={c.x} cy={c.y} r={3} fill={style.color} stroke="var(--background)" strokeWidth={1.5} />
+                  <circle key={i} cx={c.x} cy={c.y} r={3} fill={style.color} stroke="var(--surface)" strokeWidth={2} />
                 ))}
               </g>
             );
@@ -117,7 +120,7 @@ export function SectionTimelineChart({
           {endLabels.map((item) => {
             const style = postTypeStyle(item.postType);
             return (
-              <text key={item.postType} x={width - padding.right + 8} y={item.y} dy={3} fontSize={11} fill="currentColor">
+              <text key={item.postType} x={width - padding.right + 8} y={item.y} dy={3} fontSize={11} fill="var(--ink-secondary)">
                 <tspan fill={style.color}>● </tspan>
                 {item.postType}
               </text>
@@ -130,8 +133,7 @@ export function SectionTimelineChart({
               y1={padding.top}
               x2={padding.left + hoverIndex * stepX}
               y2={height - padding.bottom}
-              stroke="currentColor"
-              strokeOpacity={0.2}
+              stroke="var(--line-strong)"
             />
           )}
 
@@ -147,10 +149,10 @@ export function SectionTimelineChart({
 
           {allDates.length > 0 && (
             <>
-              <text x={padding.left} y={height - 6} fontSize={11} fill="currentColor" opacity={0.6}>
+              <text x={padding.left} y={height - 6} fontSize={11} fill="var(--axis-ink)">
                 {allDates[0]}
               </text>
-              <text x={width - padding.right} y={height - 6} fontSize={11} fill="currentColor" opacity={0.6} textAnchor="end">
+              <text x={width - padding.right} y={height - 6} fontSize={11} fill="var(--axis-ink)" textAnchor="end">
                 {allDates[allDates.length - 1]}
               </text>
             </>
@@ -159,7 +161,7 @@ export function SectionTimelineChart({
 
         {hoverIndex != null && allDates[hoverIndex] && (
           <div
-            className="pointer-events-none absolute top-2 z-10 -translate-x-1/2 rounded-lg border border-border bg-background px-3 py-2 text-xs shadow-md"
+            className="pointer-events-none absolute top-2 z-10 -translate-x-1/2 rounded-xl border border-line bg-surface px-3 py-2 text-xs shadow-lg"
             style={{ left: `${(xForDate(allDates[hoverIndex]) / width) * 100}%` }}
           >
             <p className="font-medium">{allDates[hoverIndex]}</p>
@@ -167,9 +169,14 @@ export function SectionTimelineChart({
               const point = s.points.find((p) => p.date === allDates[hoverIndex]);
               const style = postTypeStyle(s.postType);
               return (
-                <p key={s.postType} className="mt-0.5 text-muted">
-                  <span style={{ color: style.color }}>●</span> {s.postType}:{" "}
-                  <span className="font-medium text-foreground">{point?.value != null ? formatValue(point.value) : "—"}</span>
+                // El valor va primero y en alto contraste: quien mira el
+                // tooltip ya sabe qué serie es, lo que busca es el número.
+                <p key={s.postType} className="tnum mt-0.5 flex items-baseline gap-1.5 text-ink-muted">
+                  <span aria-hidden style={{ color: style.color }}>●</span>
+                  <span className="font-semibold text-ink">
+                    {point?.value != null ? formatValue(point.value) : "—"}
+                  </span>
+                  <span>{s.postType}</span>
                 </p>
               );
             })}
@@ -187,9 +194,7 @@ export function SectionTimelineChart({
                 type="button"
                 onClick={() => toggle(s.postType)}
                 aria-pressed={!isHidden}
-                className={`flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 transition-opacity ${
-                  isHidden ? "opacity-40" : ""
-                }`}
+                className={`chip ${isHidden ? "opacity-40" : ""}`}
               >
                 <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: style.color }} />
                 {s.postType}
@@ -200,11 +205,11 @@ export function SectionTimelineChart({
       </ul>
 
       <details className="mt-3 text-sm">
-        <summary className="cursor-pointer text-muted hover:text-foreground">Ver como tabla</summary>
+        <summary className="cursor-pointer text-ink-muted hover:text-ink">Ver como tabla</summary>
         <div className="mt-3 overflow-x-auto">
           <table className="w-full min-w-[480px] border-collapse text-sm">
             <thead>
-              <tr className="border-b border-border text-left text-muted">
+              <tr className="border-b border-line text-left text-ink-muted">
                 <th className="px-2 py-2 font-medium">Fecha</th>
                 {series.map((s) => (
                   <th key={s.postType} className="px-2 py-2 font-medium">
@@ -215,7 +220,7 @@ export function SectionTimelineChart({
             </thead>
             <tbody>
               {allDates.map((date) => (
-                <tr key={date} className="border-b border-border/60">
+                <tr key={date} className="border-b border-line/60">
                   <td className="px-2 py-2">{date}</td>
                   {series.map((s) => {
                     const point = s.points.find((p) => p.date === date);

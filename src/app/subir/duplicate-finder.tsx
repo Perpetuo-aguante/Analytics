@@ -43,8 +43,8 @@ export function DuplicateFinder() {
 
   return (
     <div>
-      <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-muted">Posibles posts duplicados</h2>
-      <p className="mb-4 text-sm text-muted">
+      <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-ink-muted">Posibles posts duplicados</h2>
+      <p className="mb-4 text-sm text-ink-muted">
         Compara títulos/slugs por similitud (no por igualdad exacta), porque algunas cargas guardan el slug crudo de
         Substack como título en vez del título real. Revisa cada par antes de combinar — la fusión mueve las métricas
         históricas al post que elijas conservar y borra el otro.
@@ -54,7 +54,7 @@ export function DuplicateFinder() {
         type="button"
         onClick={scan}
         disabled={pending}
-        className="rounded-full border border-border px-3 py-1.5 text-sm text-muted hover:border-accent hover:text-foreground disabled:opacity-50"
+        className="rounded-full border border-line px-3 py-1.5 text-sm text-ink-muted hover:border-blue hover:text-ink disabled:opacity-50"
       >
         {pending && candidates == null ? "Buscando…" : "Buscar duplicados"}
       </button>
@@ -64,7 +64,7 @@ export function DuplicateFinder() {
       )}
 
       {candidates != null && candidates.length === 0 && (
-        <p className="mt-4 text-sm text-muted">No se encontraron posibles duplicados.</p>
+        <p className="mt-4 text-sm text-ink-muted">No se encontraron posibles duplicados.</p>
       )}
 
       {candidates != null && candidates.length > 0 && (
@@ -72,8 +72,8 @@ export function DuplicateFinder() {
           {candidates.map((candidate, index) => {
             const keep = keepChoice[index] ?? "A";
             return (
-              <li key={`${candidate.postA.id}-${candidate.postB.id}`} className="rounded-2xl border border-border p-4 text-sm">
-                <p className="mb-3 text-xs text-muted">Similitud: {Math.round(candidate.similarity * 100)}%</p>
+              <li key={`${candidate.postA.id}-${candidate.postB.id}`} className="panel p-4 text-sm">
+                <p className="mb-3 text-xs text-ink-muted">Similitud: {Math.round(candidate.similarity * 100)}%</p>
                 <div className="mb-3 space-y-2">
                   {(["A", "B"] as const).map((option) => {
                     const post = option === "A" ? candidate.postA : candidate.postB;
@@ -88,7 +88,7 @@ export function DuplicateFinder() {
                         />
                         <span>
                           <span className="font-medium">{post.title}</span>{" "}
-                          <span className="text-muted">
+                          <span className="text-ink-muted">
                             ({post.slug} · {post.publishedAt ?? "sin fecha"})
                           </span>
                         </span>
@@ -96,11 +96,11 @@ export function DuplicateFinder() {
                     );
                   })}
                 </div>
-                <p className="mb-2 text-xs text-muted">Se conservará el marcado arriba; el otro se elimina.</p>
+                <p className="mb-2 text-xs text-ink-muted">Se conservará el marcado arriba; el otro se elimina.</p>
 
                 {confirming === index ? (
                   <span className="flex items-center gap-2">
-                    <span className="text-muted">¿Combinar? Esto no se puede deshacer.</span>
+                    <span className="text-ink-muted">¿Combinar? Esto no se puede deshacer.</span>
                     <button
                       onClick={() => handleMerge(index)}
                       disabled={pending}
@@ -108,7 +108,7 @@ export function DuplicateFinder() {
                     >
                       Sí, combinar
                     </button>
-                    <button onClick={() => setConfirming(null)} disabled={pending} className="text-xs text-muted underline">
+                    <button onClick={() => setConfirming(null)} disabled={pending} className="text-xs text-ink-muted underline">
                       Cancelar
                     </button>
                   </span>

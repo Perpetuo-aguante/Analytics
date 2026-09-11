@@ -62,40 +62,40 @@ export function EditPostForm({ post, snapshot }: { post: Post; snapshot: MetricS
         <button onClick={() => setOpen(true)} className="btn-secondary text-xs">
           Corregir datos
         </button>
-        {done && <span className="text-xs text-muted">Guardado.</span>}
+        {done && <span className="text-xs text-ink-muted">Guardado.</span>}
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-6 space-y-5 rounded-2xl border border-border px-6 py-6">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Corregir datos del post</h2>
+    <form onSubmit={handleSubmit} className="panel mt-6 space-y-5 px-6 py-6">
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">Corregir datos del post</h2>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block text-sm">
-          <span className="text-muted">Título</span>
+          <span className="text-ink-muted">Título</span>
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             required
-            className="mt-1 w-full rounded-full border border-border bg-white/50 px-4 py-2 outline-none focus:border-accent"
+            className="mt-1 w-full rounded-full border border-line bg-white/50 px-4 py-2 outline-none focus:border-blue"
           />
         </label>
         <label className="block text-sm">
-          <span className="text-muted">Autor / subtítulo</span>
+          <span className="text-ink-muted">Autor / subtítulo</span>
           <input
             value={author}
             onChange={(e) => setAuthor(e.target.value)}
-            className="mt-1 w-full rounded-full border border-border bg-white/50 px-4 py-2 outline-none focus:border-accent"
+            className="mt-1 w-full rounded-full border border-line bg-white/50 px-4 py-2 outline-none focus:border-blue"
           />
         </label>
         <label className="block text-sm">
-          <span className="text-muted">Tipo de post</span>
+          <span className="text-ink-muted">Tipo de post</span>
           <input
             value={postType}
             onChange={(e) => setPostType(e.target.value)}
             list="post-type-options"
-            className="mt-1 w-full rounded-full border border-border bg-white/50 px-4 py-2 outline-none focus:border-accent"
+            className="mt-1 w-full rounded-full border border-line bg-white/50 px-4 py-2 outline-none focus:border-blue"
           />
           <datalist id="post-type-options">
             {LEADERBOARD_POST_TYPES.map((t) => (
@@ -104,74 +104,74 @@ export function EditPostForm({ post, snapshot }: { post: Post; snapshot: MetricS
           </datalist>
         </label>
         <label className="block text-sm">
-          <span className="text-muted">Fecha de publicación</span>
+          <span className="text-ink-muted">Fecha de publicación</span>
           <input
             type="date"
             value={publishedAt}
             onChange={(e) => setPublishedAt(e.target.value)}
-            className="mt-1 w-full rounded-full border border-border bg-white/50 px-4 py-2 outline-none focus:border-accent"
+            className="mt-1 w-full rounded-full border border-line bg-white/50 px-4 py-2 outline-none focus:border-blue"
           />
         </label>
       </div>
 
       {snapshot ? (
         <div>
-          <p className="mb-3 text-sm text-muted">
+          <p className="mb-3 text-sm text-ink-muted">
             Métricas del snapshot más reciente ({snapshot.snapshot_date}).
           </p>
           <div className="grid gap-4 sm:grid-cols-3">
             <label className="block text-sm">
-              <span className="text-muted">Views</span>
+              <span className="text-ink-muted">Views</span>
               <input
                 type="number"
                 value={views}
                 onChange={(e) => setViews(e.target.value)}
-                className="mt-1 w-full rounded-full border border-border bg-white/50 px-4 py-2 outline-none focus:border-accent"
+                className="mt-1 w-full rounded-full border border-line bg-white/50 px-4 py-2 outline-none focus:border-blue"
               />
             </label>
             <label className="block text-sm">
-              <span className="text-muted">Nuevos suscriptores</span>
+              <span className="text-ink-muted">Nuevos suscriptores</span>
               <input
                 type="number"
                 value={newSubscribers}
                 onChange={(e) => setNewSubscribers(e.target.value)}
-                className="mt-1 w-full rounded-full border border-border bg-white/50 px-4 py-2 outline-none focus:border-accent"
+                className="mt-1 w-full rounded-full border border-line bg-white/50 px-4 py-2 outline-none focus:border-blue"
               />
             </label>
             <label className="block text-sm">
-              <span className="text-muted">Open rate (%)</span>
+              <span className="text-ink-muted">Open rate (%)</span>
               <input
                 type="number"
                 step="0.1"
                 value={openRate}
                 onChange={(e) => setOpenRate(e.target.value)}
-                className="mt-1 w-full rounded-full border border-border bg-white/50 px-4 py-2 outline-none focus:border-accent"
+                className="mt-1 w-full rounded-full border border-line bg-white/50 px-4 py-2 outline-none focus:border-blue"
               />
             </label>
             <label className="block text-sm">
-              <span className="text-muted">Click-to-open rate (%)</span>
+              <span className="text-ink-muted">Click-to-open rate (%)</span>
               <input
                 type="number"
                 step="0.1"
                 value={clickToOpenRate}
                 onChange={(e) => setClickToOpenRate(e.target.value)}
-                className="mt-1 w-full rounded-full border border-border bg-white/50 px-4 py-2 outline-none focus:border-accent"
+                className="mt-1 w-full rounded-full border border-line bg-white/50 px-4 py-2 outline-none focus:border-blue"
               />
             </label>
             <label className="block text-sm">
-              <span className="text-muted">Engagement (%)</span>
+              <span className="text-ink-muted">Engagement (%)</span>
               <input
                 type="number"
                 step="0.1"
                 value={engagement}
                 onChange={(e) => setEngagement(e.target.value)}
-                className="mt-1 w-full rounded-full border border-border bg-white/50 px-4 py-2 outline-none focus:border-accent"
+                className="mt-1 w-full rounded-full border border-line bg-white/50 px-4 py-2 outline-none focus:border-blue"
               />
             </label>
           </div>
         </div>
       ) : (
-        <p className="text-sm text-muted">Este post todavía no tiene snapshots de métricas.</p>
+        <p className="text-sm text-ink-muted">Este post todavía no tiene snapshots de métricas.</p>
       )}
 
       {error && <p className="text-sm text-red-600">{error}</p>}
@@ -180,7 +180,7 @@ export function EditPostForm({ post, snapshot }: { post: Post; snapshot: MetricS
         <button type="submit" disabled={pending} className="btn-primary text-sm">
           {pending ? "Guardando…" : "Guardar cambios"}
         </button>
-        <button type="button" onClick={() => setOpen(false)} disabled={pending} className="text-sm text-muted underline">
+        <button type="button" onClick={() => setOpen(false)} disabled={pending} className="text-sm text-ink-muted underline">
           Cancelar
         </button>
       </div>

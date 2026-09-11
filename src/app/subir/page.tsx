@@ -14,35 +14,35 @@ export default async function SubirPage() {
 
   if (!authenticated) {
     return (
-      <main className="mx-auto max-w-md px-6 py-16">
-        <h1 className="mb-6 font-serif text-2xl font-semibold">Cargar métricas semanales</h1>
+      <main className="mx-auto max-w-md px-6 py-12">
+        <h1 className="mb-6 font-display text-2xl font-semibold">Cargar métricas semanales</h1>
         <LoginForm />
       </main>
     );
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-16">
+    <main className="mx-auto max-w-3xl px-6 py-12">
       <div className="mb-10 flex items-center justify-between">
-        <h1 className="font-serif text-2xl font-semibold">Cargar métricas semanales</h1>
+        <h1 className="font-display text-2xl font-semibold">Cargar métricas semanales</h1>
         <form action={logout}>
-          <button className="rounded-full border border-border px-3 py-1.5 text-sm text-muted hover:border-accent hover:text-foreground">
+          <button className="rounded-full border border-line px-3 py-1.5 text-sm text-ink-muted hover:border-blue hover:text-ink">
             Cerrar sesión
           </button>
         </form>
       </div>
-      <h2 className="mb-6 font-serif text-xl font-semibold">Métricas de posts</h2>
+      <h2 className="mb-6 font-display text-xl font-semibold">Métricas de posts</h2>
       <Uploader />
-      <hr className="my-12 border-border" />
+      <hr className="my-12 border-line" />
       <ManageUploads />
-      <hr className="my-12 border-border" />
+      <hr className="my-12 border-line" />
       <DuplicateFinder />
 
-      <hr className="my-16 border-border" />
+      <hr className="my-16 border-line" />
 
-      <h2 className="mb-6 font-serif text-xl font-semibold">Suscriptores</h2>
+      <h2 className="mb-6 font-display text-xl font-semibold">Suscriptores</h2>
       <SubscribersUploader />
-      <hr className="my-12 border-border" />
+      <hr className="my-12 border-line" />
       <SubscribersManageUploads />
     </main>
   );

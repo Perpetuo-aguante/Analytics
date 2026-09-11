@@ -37,32 +37,31 @@ export function LineChart({
   const formatValue = (v: number) => (percent ? `${(v * 100).toFixed(1)}%` : Math.round(v).toLocaleString("es"));
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="w-full text-foreground" role="img">
+    <svg viewBox={`0 0 ${width} ${height}`} className="w-full" role="img">
       <line
         x1={padding.left}
         y1={height - padding.bottom}
         x2={width - padding.right}
         y2={height - padding.bottom}
-        stroke="currentColor"
-        strokeOpacity={0.15}
+        stroke="var(--line)"
       />
 
-      <path d={path} fill="none" stroke="currentColor" strokeWidth={1.5} />
+      <path d={path} fill="none" stroke="var(--blue)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
       {linePoints.map((c, i) => (
-        <circle key={i} cx={c.x} cy={c.y} r={2.5} fill="currentColor" />
+        <circle key={i} cx={c.x} cy={c.y} r={4} fill="var(--blue)" stroke="var(--surface)" strokeWidth={2} />
       ))}
 
-      <text x={padding.left} y={padding.top - 6} fontSize={11} fill="currentColor" opacity={0.6}>
+      <text x={padding.left} y={padding.top - 6} fontSize={11} fill="var(--axis-ink)">
         {formatValue(maxValue)}
       </text>
-      <text x={padding.left} y={height - padding.bottom - 6} fontSize={11} fill="currentColor" opacity={0.6}>
+      <text x={padding.left} y={height - padding.bottom - 6} fontSize={11} fill="var(--axis-ink)">
         {formatValue(minValue)}
       </text>
 
-      <text x={padding.left} y={height - 4} fontSize={11} fill="currentColor" opacity={0.6}>
+      <text x={padding.left} y={height - 4} fontSize={11} fill="var(--axis-ink)">
         {valid[0].date}
       </text>
-      <text x={width - padding.right} y={height - 4} fontSize={11} fill="currentColor" opacity={0.6} textAnchor="end">
+      <text x={width - padding.right} y={height - 4} fontSize={11} fill="var(--axis-ink)" textAnchor="end">
         {valid[valid.length - 1].date}
       </text>
     </svg>

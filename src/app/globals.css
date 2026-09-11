@@ -1,96 +1,339 @@
 @import "tailwindcss";
 
+/* ════════════════════════════════════════════════════════════════════
+   PERPETUO ANALÍTICA — sistema visual
+   Marca: azul #0f52a0 sobre crema #f9f6f1, con manchas granuladas de azul
+   y rojo. Todo el "movimiento" es CSS y SVG: cero dependencias, cero WebGL.
+   ════════════════════════════════════════════════════════════════════ */
+
 :root {
-  --background: #f6efe0;
-  --foreground: #2f2a22;
-  --muted: #85795f;
-  --border: #e3d7ba;
-  --accent: #d1592f;
-  --accent-hover: #b8471f;
-  --accent-foreground: #fff8ef;
+  /* Planos */
+  --bg: #f9f6f1;              /* crema de marca */
+  --surface: #fffdfa;         /* tarjetas, un paso por encima del fondo */
+  --surface-sunk: #f2ede4;    /* campos, celdas, rieles */
+
+  /* Tinta — todos los valores de texto verificados sobre --bg:
+     ink 17.6:1 · secondary 7.4:1 · muted 4.9:1 (AA para texto normal) */
+  --ink: #12100e;
+  --ink-secondary: #55504a;
+  --ink-muted: #736b61;
+
+  /* Cromo de chart: no es texto, no necesita 4.5:1 */
+  --line: #e4ddd2;            /* hairline, bordes */
+  --line-strong: #cfc5b5;     /* ejes, línea base */
+  --axis-ink: #8a8279;        /* etiquetas de eje */
+
+  /* Marca */
+  --blue: #0f52a0;
+  --blue-deep: #0b3d78;
+  --red: #d0301f;
+  --red-deep: #a92416;
+  --on-brand: #f9f6f1;        /* 7.1:1 sobre azul, 4.7:1 sobre rojo */
+
+  --radius: 14px;
+  --radius-lg: 22px;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-muted: var(--muted);
-  --color-border: var(--border);
-  --color-accent: var(--accent);
-  --color-accent-hover: var(--accent-hover);
-  --color-accent-foreground: var(--accent-foreground);
-  --font-serif: var(--font-poppins), Georgia, "Times New Roman", serif;
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-sunk: var(--surface-sunk);
+  --color-ink: var(--ink);
+  --color-ink-secondary: var(--ink-secondary);
+  --color-ink-muted: var(--ink-muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-blue: var(--blue);
+  --color-blue-deep: var(--blue-deep);
+  --color-red: var(--red);
+  --color-on-brand: var(--on-brand);
+
+  --font-display: var(--font-poppins), "Helvetica Neue", Arial, sans-serif;
+  --font-sans: var(--font-poppins), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+html {
+  /* Next 16 ya no pisa scroll-behavior en las navegaciones; este atributo se
+     lo pide de vuelta para que cambiar de sección no quede "deslizándose". */
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--bg);
+  color: var(--ink);
   font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
 }
 
 h1,
 h2,
 h3 {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
 }
 
-/* Botón principal: la llamada a la acción "pop" contra el fondo crema. */
+/* Los números se leen en columna: cifras de ancho fijo para que las unidades
+   queden alineadas entre filas. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Fondo granulado ──────────────────────────────────────────────────
+   Manchas de marca ancladas a los bordes, con el centro limpio: es la
+   composición de las referencias (marco de color, campo de lectura vacío) y
+   además es lo que deja el texto legible sin bajarle el color a las manchas.
+   Tres capas fijas: manchas azules, manchas rojas por detrás, y grano. El
+   grano no se anima nunca — es lo que da el borde "impreso", y animarlo
+   costaría un repintado de pantalla completa por frame. */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--bg);
+}
+
+.backdrop__blobs {
+  position: absolute;
+  /* Se desborda a propósito: las manchas entran y salen del encuadre
+     mientras derivan, como en las referencias. */
+  inset: -8%;
+  filter: blur(32px);
+  will-change: transform;
+  animation: blob-drift 54s ease-in-out infinite alternate;
+}
+
+.backdrop__blobs::before,
+.backdrop__blobs::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.backdrop__blobs::before {
+  opacity: 1;
+  background:
+    radial-gradient(22% 24% at 4% 12%, var(--blue) 0%, var(--blue) 42%, transparent 76%),
+    radial-gradient(20% 20% at 96% 6%, var(--blue) 0%, var(--blue) 42%, transparent 76%),
+    radial-gradient(18% 24% at 97% 58%, var(--blue) 0%, var(--blue) 42%, transparent 76%),
+    radial-gradient(22% 20% at 18% 94%, var(--blue) 0%, var(--blue) 42%, transparent 76%),
+    radial-gradient(18% 18% at 80% 97%, var(--blue) 0%, var(--blue) 42%, transparent 76%);
+}
+
+.backdrop__blobs::after {
+  /* El rojo va por detrás del azul en las referencias: halo, no relleno.
+     Por eso sus manchas son más grandes y están ligeramente desfasadas. */
+  opacity: 0.9;
+  background:
+    radial-gradient(28% 30% at 1% 18%, var(--red) 0%, var(--red) 38%, transparent 74%),
+    radial-gradient(26% 26% at 99% 1%, var(--red) 0%, var(--red) 38%, transparent 74%),
+    radial-gradient(24% 30% at 100% 54%, var(--red) 0%, var(--red) 38%, transparent 74%),
+    radial-gradient(28% 26% at 12% 99%, var(--red) 0%, var(--red) 38%, transparent 74%),
+    radial-gradient(24% 24% at 86% 93%, var(--red) 0%, var(--red) 38%, transparent 74%);
+  animation: blob-drift-alt 67s ease-in-out infinite alternate;
+}
+
+@keyframes blob-drift {
+  from { transform: translate3d(-2%, -1.5%, 0) scale(1); }
+  to   { transform: translate3d(3%, 2%, 0) scale(1.1); }
+}
+
+@keyframes blob-drift-alt {
+  from { transform: translate3d(2.5%, 1.5%, 0) scale(1.08) rotate(-3deg); }
+  to   { transform: translate3d(-3%, -2%, 0) scale(1) rotate(4deg); }
+}
+
+/* El velo despeja la COLUMNA de lectura, no un círculo: es una banda
+   vertical opaca del ancho del contenido, con los márgenes izquierdo y
+   derecho transparentes. Así el color queda enmarcando la página a todo
+   pulmón y el texto nunca cae encima de una mancha saturada. */
+.backdrop__veil {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    transparent 5%,
+    color-mix(in srgb, var(--bg) 60%, transparent) 11%,
+    var(--bg) 19%,
+    var(--bg) 81%,
+    color-mix(in srgb, var(--bg) 60%, transparent) 89%,
+    transparent 95%,
+    transparent 100%
+  );
+}
+
+/* Por debajo de la columna de contenido (~1280px con sus márgenes) ya no hay
+   márgenes que sacrificar: el velo pasa a cubrir todo y las manchas quedan
+   como un tinte apenas perceptible. */
+@media (max-width: 1280px) {
+  .backdrop__veil {
+    background: linear-gradient(
+      to right,
+      color-mix(in srgb, var(--bg) 80%, transparent) 0%,
+      var(--bg) 12%,
+      var(--bg) 88%,
+      color-mix(in srgb, var(--bg) 80%, transparent) 100%
+    );
+  }
+}
+
+/* Grano: feTurbulence embebido como data URI. Es lo que rompe el degradado
+   limpio en el moteado de las referencias. */
+.backdrop__grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.5;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backdrop__blobs,
+  .backdrop__blobs::after {
+    animation: none;
+  }
+}
+
+/* ── Superficies ──────────────────────────────────────────────────────── */
+
+.panel {
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(12px);
+}
+
+.panel-flat {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+/* ── Controles ────────────────────────────────────────────────────────── */
+
 .btn-primary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
   border-radius: 999px;
-  background: var(--accent);
-  color: var(--accent-foreground);
+  background: var(--blue);
+  color: var(--on-brand);
   font-weight: 600;
   padding: 0.6rem 1.4rem;
-  box-shadow: 0 4px 14px rgba(209, 89, 47, 0.28);
-  transition:
-    transform 0.15s ease,
-    box-shadow 0.15s ease,
-    background-color 0.15s ease;
+  transition: background-color 0.15s ease, transform 0.15s ease;
 }
 
 .btn-primary:hover {
-  background: var(--accent-hover);
+  background: var(--blue-deep);
   transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(209, 89, 47, 0.35);
 }
 
-.btn-primary:active {
-  transform: translateY(0);
-}
+.btn-primary:active { transform: translateY(0); }
+.btn-primary:disabled { opacity: 0.5; transform: none; }
 
-.btn-primary:disabled {
-  opacity: 0.5;
-  box-shadow: none;
-  transform: none;
-}
-
-/* Botón secundario/pill: para toggles y acciones de menor jerarquía. */
-.btn-secondary {
+/* El chip es el control central de la app: un clic aplica el filtro, sin
+   botón "Filtrar" de por medio. El estado activo no depende solo del color
+   (relleno + peso + marca de verificación). */
+.chip {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  gap: 0.4rem;
   border-radius: 999px;
-  border: 1px solid var(--border);
-  padding: 0.55rem 1.3rem;
+  border: 1px solid var(--line-strong);
+  background: color-mix(in srgb, var(--surface) 75%, transparent);
+  padding: 0.4rem 0.85rem;
+  font-size: 0.8125rem;
   font-weight: 500;
-  color: var(--muted);
-  transition:
-    border-color 0.15s ease,
-    color 0.15s ease,
-    background-color 0.15s ease;
+  color: var(--ink-secondary);
+  white-space: nowrap;
+  transition: border-color 0.12s ease, background-color 0.12s ease, color 0.12s ease;
 }
 
-.btn-secondary:hover {
-  border-color: var(--accent);
-  color: var(--foreground);
+.chip:hover {
+  border-color: var(--blue);
+  color: var(--ink);
 }
 
-.btn-secondary[data-active="true"] {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--accent-foreground);
+.chip[data-active="true"] {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: var(--on-brand);
+  font-weight: 600;
+}
+
+/* Variante para los chips de tipo de post: cuando están activos toman el
+   color del tipo, el mismo que usan en todos los charts. */
+.chip[data-active="true"][data-tone="type"] {
+  background: var(--chip-color);
+  border-color: var(--chip-color);
+  color: var(--on-brand);
+}
+
+.chip__dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--chip-color, currentColor);
+  flex-shrink: 0;
+}
+
+.chip[data-active="true"] .chip__dot {
+  background: var(--on-brand);
+}
+
+.field {
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  color: var(--ink);
+  outline: none;
+}
+
+.field:focus {
+  border-color: var(--blue);
+}
+
+/* Foco visible y consistente en todo lo interactivo. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Movimiento de entrada ────────────────────────────────────────────
+   La "experiencia divertida al navegar": cada sección entra escalonada en
+   vez de aparecer de golpe. Es puramente decorativo — el contenido ya está
+   en el HTML del servidor, así que no hay nada que esperar. */
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.rise {
+  animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.rise-1 { animation-delay: 0.04s; }
+.rise-2 { animation-delay: 0.09s; }
+.rise-3 { animation-delay: 0.14s; }
+.rise-4 { animation-delay: 0.19s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rise {
+    animation: none;
+  }
+  html { scroll-behavior: auto; }
 }

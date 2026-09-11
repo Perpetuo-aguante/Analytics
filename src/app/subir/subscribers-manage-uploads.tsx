@@ -37,29 +37,29 @@ export function SubscribersManageUploads() {
 
   return (
     <div>
-      <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-muted">Cargas anteriores</h2>
-      <p className="mb-4 text-sm text-muted">
+      <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-ink-muted">Cargas anteriores</h2>
+      <p className="mb-4 text-sm text-ink-muted">
         Cada carga agrupa todos los suscriptores subidos con la misma fecha de snapshot. Eliminar una carga borra
         sus métricas; los suscriptores que solo existían por esa carga también se eliminan.
       </p>
 
       {error && <p className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
-      {uploads == null && !error && <p className="text-sm text-muted">Cargando…</p>}
+      {uploads == null && !error && <p className="text-sm text-ink-muted">Cargando…</p>}
 
-      {uploads && uploads.length === 0 && <p className="text-sm text-muted">Todavía no hay cargas.</p>}
+      {uploads && uploads.length === 0 && <p className="text-sm text-ink-muted">Todavía no hay cargas.</p>}
 
       {uploads && uploads.length > 0 && (
-        <ul className="divide-y divide-border rounded-2xl border border-border">
+        <ul className="panel divide-y divide-line">
           {uploads.map((upload) => (
             <li key={upload.snapshotDate} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
               <span>
                 {upload.snapshotDate}{" "}
-                <span className="text-muted">· {upload.subscriberCount.toLocaleString("es")} suscriptores</span>
+                <span className="text-ink-muted">· {upload.subscriberCount.toLocaleString("es")} suscriptores</span>
               </span>
               {confirming === upload.snapshotDate ? (
                 <span className="flex items-center gap-2">
-                  <span className="text-muted">¿Eliminar esta carga?</span>
+                  <span className="text-ink-muted">¿Eliminar esta carga?</span>
                   <button
                     onClick={() => handleDelete(upload.snapshotDate)}
                     disabled={pending}
@@ -67,7 +67,7 @@ export function SubscribersManageUploads() {
                   >
                     Sí, eliminar
                   </button>
-                  <button onClick={() => setConfirming(null)} disabled={pending} className="text-xs text-muted underline">
+                  <button onClick={() => setConfirming(null)} disabled={pending} className="text-xs text-ink-muted underline">
                     Cancelar
                   </button>
                 </span>
