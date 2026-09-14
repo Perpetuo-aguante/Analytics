@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getSubscriberDashboard } from "@/lib/subscriber-queries";
 import { formatMoney, formatNumber, formatPercent, formatTenure } from "@/lib/display";
 import { BarChart } from "@/components/bar-chart";
@@ -73,8 +74,17 @@ export default async function SuscriptoresPage() {
           <BarChart data={d.sectionBreakdown} />
         </div>
         <div>
-          <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-muted">Top países</h2>
+          <div className="mb-4 flex items-baseline justify-between gap-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">Top países</h2>
+            <Link href="/suscriptores/geografia" className="text-xs text-blue hover:underline">
+              Ver geografía e histórico →
+            </Link>
+          </div>
           <BarChart data={d.countryBreakdown} />
+        </div>
+        <div>
+          <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-muted">Por región</h2>
+          <BarChart data={d.regionBreakdown} />
         </div>
         <div>
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-muted">Distribución de actividad</h2>
