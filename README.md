@@ -25,9 +25,36 @@ un enlace compartido no se congele en las fechas del día que se copió.
 - **`/post/[slug]`**: evolución de métricas de un post a través de los snapshots semanales.
 - **`/promedios`**: promedios agregados y media móvil histórica de las métricas de posts.
 - **`/dashboards`**: scatter (open rate vs. views, views vs. nuevos suscriptores) y series temporales por sección.
-- **`/suscriptores`**: panel de analítica de suscriptores — KPIs, desgloses (tipo, sección, país, actividad, open rate, antigüedad), crecimiento neto acumulado y comparación gratis-vs-pago.
+- **`/suscriptores`**: panel de analítica de suscriptores — KPIs, desgloses (tipo, sección, país, región, actividad, open rate, antigüedad), crecimiento neto acumulado y comparación gratis-vs-pago.
+- **`/suscriptores/geografia`**: de dónde vienen y cómo cambia — ranking de países y regiones, cambio neto por país en la ventana elegida (90 días / 6 meses / 1 año), tabla con peso sobre la lista y miniatura de tendencia, histórico mes a mes por país (en suscriptores o en % del total) y por región, y desglose por estado/provincia.
 - **`/suscriptores/lista`**: búsqueda, filtros y paginación sobre la base completa de suscriptores.
 - **`/suscriptores/[id]`**: ficha individual de un suscriptor (antigüedad, métricas de engagement, preferencias de sección, evolución si hay más de una carga).
+
+## De dónde vienen los suscriptores
+
+`/suscriptores/geografia` responde dos preguntas distintas: dónde está el público hoy
+y hacia dónde se está moviendo.
+
+El **histórico no está guardado, se reconstruye**. `subscribers` no tiene una foto del
+país mes a mes — el país se pisa en cada carga — pero sí guarda `start_date` y
+`cancel_date`, y con esas dos fechas se sabe, para cualquier momento del pasado, quién
+estaba dado de alta. Agrupando por país sale la serie de cada uno sin haber guardado
+nada extra (`lib/subscriber-geo.ts`). Eso implica dos límites, que la propia página
+dice en pantalla: el país es el **actual** (quien se mudó arrastra toda su historia a
+su país de hoy), y solo se puede reconstruir a quien sigue en el export (los cancelados
+están, con su fecha de baja; quien fue borrado de la lista, no).
+
+Los países se **normalizan antes de agrupar** (`lib/geo.ts`): "Spain", "España" y "ES"
+son el mismo país, y cada uno cae en su región del mundo. Sin eso, el mismo país
+aparecía partido en varias barras. La normalización también la usa el filtro por país
+de `/suscriptores/lista`, así que el enlace "ver la lista de España" funciona sea cual
+sea la grafía que traiga la carga.
+
+Un país entra en "quién sube y quién baja" solo si se movió **al menos 3 suscriptores y
+un 5% de su base**: por debajo de ese piso, un país con cuatro suscriptores que gana uno
+aparecería "creciendo 25%" arriba de todo. El histórico se puede ver en suscriptores o
+en **% del total**: mientras la lista crece, un país puede sumar todos los meses y aun
+así estar perdiendo peso, y con una sola de las dos vistas eso no se ve.
 
 ## Identidad visual
 
@@ -49,7 +76,7 @@ Ver [`supabase/schema.sql`](./supabase/schema.sql) y las migraciones en [`supaba
 - `posts`: identidad estable de cada post (slug derivado del título; la URL es opcional).
 - `metric_snapshots`: una fila nueva por post en cada carga semanal — nunca se sobrescribe el histórico.
 - `current_metrics` (vista): el snapshot más reciente de cada post.
-- `subscribers`: identidad de cada suscriptor (email) + atributos descriptivos (tipo, plan, fechas de alta/baja, país, preferencias de sección) que se actualizan en cada carga.
+- `subscribers`: identidad de cada suscriptor (email) + atributos descriptivos (tipo, plan, fechas de alta/baja, país, estado/provincia, preferencias de sección) que se actualizan en cada carga. `start_date` y `cancel_date` son las que sostienen todo el histórico de `/suscriptores/geografia`.
 - `subscriber_snapshots`: las métricas cuantitativas de actividad (aperturas, clics, views, comentarios, shares, revenue) por carga — mismo patrón de histórico que `metric_snapshots`.
 - `current_subscriber_metrics` (vista): el snapshot más reciente de cada suscriptor, con open rate y click rate ya calculados (`0003_fix_open_rate_6mo.sql` corrige el open rate para que no pase de 100%).
 

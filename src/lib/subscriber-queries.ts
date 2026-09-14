@@ -1,3 +1,4 @@
+import { REGION_ORDER, countryLabel, countryRegion, sameCountry } from "./geo";
 import { createAnonClient } from "./supabase/server";
 import type { CurrentSubscriberMetric, SubscriberSnapshot } from "./supabase/types";
 
@@ -7,7 +8,7 @@ import type { CurrentSubscriberMetric, SubscriberSnapshot } from "./supabase/typ
 // sí necesita saber cuáles cuentan como "pago".
 const PAID_TYPES = new Set(["Yearly Subscriber", "Monthly Subscriber", "Perpetuamente Perpetuo", "Yearly Gift"]);
 
-function isPaidType(type: string | null): boolean {
+export function isPaidType(type: string | null): boolean {
   return type != null && PAID_TYPES.has(type);
 }
 
@@ -58,7 +59,7 @@ async function fetchAllPages<T>(
   return all;
 }
 
-async function fetchAllSubscriberMetrics(): Promise<CurrentSubscriberMetric[]> {
+export async function fetchAllSubscriberMetrics(): Promise<CurrentSubscriberMetric[]> {
   const supabase = createAnonClient();
   return fetchAllPages<CurrentSubscriberMetric>((from, to) =>
     supabase.from("current_subscriber_metrics").select("*").range(from, to)
@@ -75,7 +76,10 @@ export async function getSubscribers(
   let result: SubscriberListRow[] = rows
     .filter((r) => !q || r.email.toLowerCase().includes(q) || (r.name ?? "").toLowerCase().includes(q))
     .filter((r) => !filters.type || r.type === filters.type)
-    .filter((r) => !filters.country || r.country === filters.country)
+    // El país se compara normalizado, no como texto crudo: así el enlace
+    // "ver la lista de España" que arma /suscriptores/geografia cae bien
+    // aunque algunas filas digan "Spain" y otras "ES".
+    .filter((r) => !filters.country || sameCountry(r.country, filters.country))
     .filter((r) => !filters.section || (r.sections ?? []).includes(filters.section as string))
     .filter((r) => filters.minActivity == null || (r.activity ?? -1) >= filters.minActivity)
     .filter((r) => {
@@ -182,6 +186,7 @@ export type SubscriberDashboard = {
   typeBreakdown: BreakdownItem[];
   sectionBreakdown: BreakdownItem[];
   countryBreakdown: BreakdownItem[];
+  regionBreakdown: BreakdownItem[];
   activityBreakdown: BreakdownItem[];
   openRateBreakdown: BreakdownItem[];
   tenureBreakdown: BreakdownItem[];
@@ -248,6 +253,7 @@ export async function getSubscriberDashboard(): Promise<SubscriberDashboard> {
   const typeCounts = new Map<string, number>();
   const sectionCounts = new Map<string, number>();
   const countryCounts = new Map<string, number>();
+  const regionCounts = new Map<string, number>();
   const activityCounts = new Map<string, number>();
   const openRateCounts = new Map<string, number>();
   const tenureCounts = new Map<string, number>();
@@ -264,8 +270,12 @@ export async function getSubscriberDashboard(): Promise<SubscriberDashboard> {
   for (const row of rows) {
     typeCounts.set(row.type ?? "Sin tipo", (typeCounts.get(row.type ?? "Sin tipo") ?? 0) + 1);
     for (const section of row.sections ?? []) sectionCounts.set(section, (sectionCounts.get(section) ?? 0) + 1);
-    const country = row.country || "Sin país";
+    // Los países se cuentan normalizados (ver lib/geo.ts): sin eso, "Spain",
+    // "España" y "ES" arman tres barras distintas del mismo país.
+    const country = countryLabel(row.country);
     countryCounts.set(country, (countryCounts.get(country) ?? 0) + 1);
+    const region = countryRegion(row.country);
+    regionCounts.set(region, (regionCounts.get(region) ?? 0) + 1);
 
     if (row.activity != null) {
       const key = `Actividad ${row.activity}`;
@@ -341,6 +351,7 @@ export async function getSubscriberDashboard(): Promise<SubscriberDashboard> {
     typeBreakdown: sortedBreakdown(typeCounts),
     sectionBreakdown: sortedBreakdown(sectionCounts),
     countryBreakdown: sortedBreakdown(countryCounts, 8),
+    regionBreakdown: orderedBreakdown(regionCounts, REGION_ORDER),
     activityBreakdown: orderedBreakdown(activityCounts, ACTIVITY_BUCKET_ORDER),
     openRateBreakdown: orderedBreakdown(openRateCounts, OPEN_RATE_BUCKET_ORDER),
     tenureBreakdown: orderedBreakdown(tenureCounts, TENURE_BUCKET_ORDER),
