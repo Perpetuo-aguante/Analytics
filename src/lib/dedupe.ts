@@ -48,3 +48,14 @@ export function similarity(a: string, b: string): number {
   const dist = levenshtein(na, nb);
   return 1 - dist / Math.max(na.length, nb.length);
 }
+
+// Un "título" que en realidad es el slug crudo de Substack filtrado a la
+// tabla de posts (ver el motivo arriba): todo en minúsculas, sin espacios,
+// sin acentos, separado por guiones. Un título real casi nunca tiene esta
+// forma. Se usa para detectar duplicados con más generosidad en ese caso
+// específico (ver DUPLICATE_SIMILARITY_THRESHOLD en subir/actions.ts): un
+// slug crudo puede diferir del título real más de lo que difieren dos
+// títulos reales entre sí (ej. trunca palabras, no lleva tildes/mayúsculas).
+export function looksLikeSlug(title: string): boolean {
+  return /^[a-z0-9]+(-[a-z0-9]+)*$/.test(title.trim());
+}

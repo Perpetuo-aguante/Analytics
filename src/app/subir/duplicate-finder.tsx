@@ -45,9 +45,10 @@ export function DuplicateFinder() {
     <div>
       <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-ink-muted">Posibles posts duplicados</h2>
       <p className="mb-4 text-sm text-ink-muted">
-        Compara títulos/slugs por similitud (no por igualdad exacta), porque algunas cargas guardan el slug crudo de
-        Substack como título en vez del título real. Revisa cada par antes de combinar — la fusión mueve las métricas
-        históricas al post que elijas conservar y borra el otro.
+        Compara títulos y slugs por similitud (no por igualdad exacta), porque algunas cargas guardan el slug crudo de
+        Substack como título en vez del título real — en ese caso el margen de similitud es más amplio, porque un slug
+        crudo puede diferir más del título real que dos títulos legítimamente distintos. Revisa cada par antes de
+        combinar — la fusión mueve las métricas históricas al post que elijas conservar y borra el otro.
       </p>
 
       <button
