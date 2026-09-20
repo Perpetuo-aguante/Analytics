@@ -2,11 +2,10 @@
 
 import { useId, useMemo, useRef, useState } from "react";
 import { niceTicks } from "@/lib/chart-scale";
-import { postTypeStyle } from "@/lib/post-type-style";
-import type { LeaderboardPostType } from "@/lib/post-types";
+import type { Category } from "@/lib/categories";
 
 export type TimelineSeries = {
-  postType: LeaderboardPostType;
+  category: Category;
   points: { date: string; value: number | null }[];
 };
 
@@ -23,7 +22,7 @@ export function SectionTimelineChart({
 }) {
   const titleId = useId();
   const svgRef = useRef<SVGSVGElement>(null);
-  const [hidden, setHidden] = useState<Set<LeaderboardPostType>>(() => new Set());
+  const [hidden, setHidden] = useState<Set<string>>(() => new Set());
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
   const allDates = useMemo(() => {
@@ -38,7 +37,7 @@ export function SectionTimelineChart({
   const stepX = allDates.length > 1 ? innerWidth / (allDates.length - 1) : 0;
   const xForDate = (date: string) => padding.left + allDates.indexOf(date) * stepX;
 
-  const visibleSeries = series.filter((s) => !hidden.has(s.postType));
+  const visibleSeries = series.filter((s) => !hidden.has(s.category.id));
   const allValues = visibleSeries.flatMap((s) => s.points.map((p) => p.value).filter((v): v is number => v != null));
   // Igual que en el scatter: el tope sale de los datos. Un piso de 1 mandaba
   // el eje de open rate hasta 100% y dejaba todas las series aplastadas abajo.
@@ -49,11 +48,11 @@ export function SectionTimelineChart({
 
   const formatValue = (v: number) => (percent ? `${(v * 100).toFixed(1)}%` : Math.round(v).toLocaleString("es"));
 
-  function toggle(type: LeaderboardPostType) {
+  function toggle(categoryId: string) {
     setHidden((prev) => {
       const next = new Set(prev);
-      if (next.has(type)) next.delete(type);
-      else next.add(type);
+      if (next.has(categoryId)) next.delete(categoryId);
+      else next.add(categoryId);
       return next;
     });
   }
@@ -73,9 +72,9 @@ export function SectionTimelineChart({
       .map((s) => {
         const last = [...s.points].reverse().find((p) => p.value != null);
         if (!last || last.value == null) return null;
-        return { postType: s.postType, value: last.value, y: yForValue(last.value) };
+        return { category: s.category, value: last.value, y: yForValue(last.value) };
       })
-      .filter((i): i is { postType: LeaderboardPostType; value: number; y: number } => i != null)
+      .filter((i): i is { category: Category; value: number; y: number } => i != null)
       .sort((a, b) => a.y - b.y);
 
     for (let i = 1; i < items.length; i++) {
@@ -102,13 +101,13 @@ export function SectionTimelineChart({
           ))}
 
           {visibleSeries.map((s) => {
-            const style = postTypeStyle(s.postType);
+            const style = s.category;
             const coords = s.points
               .filter((p): p is { date: string; value: number } => p.value != null)
               .map((p) => ({ x: xForDate(p.date), y: yForValue(p.value) }));
             const path = coords.map((c, i) => `${i === 0 ? "M" : "L"} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`).join(" ");
             return (
-              <g key={s.postType}>
+              <g key={s.category.id}>
                 <path d={path} fill="none" stroke={style.color} strokeWidth={2} />
                 {coords.map((c, i) => (
                   <circle key={i} cx={c.x} cy={c.y} r={3} fill={style.color} stroke="var(--surface)" strokeWidth={2} />
@@ -117,15 +116,12 @@ export function SectionTimelineChart({
             );
           })}
 
-          {endLabels.map((item) => {
-            const style = postTypeStyle(item.postType);
-            return (
-              <text key={item.postType} x={width - padding.right + 8} y={item.y} dy={3} fontSize={11} fill="var(--ink-secondary)">
-                <tspan fill={style.color}>● </tspan>
-                {item.postType}
-              </text>
-            );
-          })}
+          {endLabels.map((item) => (
+            <text key={item.category.id} x={width - padding.right + 8} y={item.y} dy={3} fontSize={11} fill="var(--ink-secondary)">
+              <tspan fill={item.category.color}>● </tspan>
+              {item.category.name}
+            </text>
+          ))}
 
           {hoverIndex != null && allDates[hoverIndex] && (
             <line
@@ -167,16 +163,15 @@ export function SectionTimelineChart({
             <p className="font-medium">{allDates[hoverIndex]}</p>
             {visibleSeries.map((s) => {
               const point = s.points.find((p) => p.date === allDates[hoverIndex]);
-              const style = postTypeStyle(s.postType);
               return (
                 // El valor va primero y en alto contraste: quien mira el
                 // tooltip ya sabe qué serie es, lo que busca es el número.
-                <p key={s.postType} className="tnum mt-0.5 flex items-baseline gap-1.5 text-ink-muted">
-                  <span aria-hidden style={{ color: style.color }}>●</span>
+                <p key={s.category.id} className="tnum mt-0.5 flex items-baseline gap-1.5 text-ink-muted">
+                  <span aria-hidden style={{ color: s.category.color }}>●</span>
                   <span className="font-semibold text-ink">
                     {point?.value != null ? formatValue(point.value) : "—"}
                   </span>
-                  <span>{s.postType}</span>
+                  <span>{s.category.name}</span>
                 </p>
               );
             })}
@@ -186,18 +181,17 @@ export function SectionTimelineChart({
 
       <ul className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm">
         {series.map((s) => {
-          const style = postTypeStyle(s.postType);
-          const isHidden = hidden.has(s.postType);
+          const isHidden = hidden.has(s.category.id);
           return (
-            <li key={s.postType}>
+            <li key={s.category.id}>
               <button
                 type="button"
-                onClick={() => toggle(s.postType)}
+                onClick={() => toggle(s.category.id)}
                 aria-pressed={!isHidden}
                 className={`chip ${isHidden ? "opacity-40" : ""}`}
               >
-                <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: style.color }} />
-                {s.postType}
+                <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: s.category.color }} />
+                {s.category.name}
               </button>
             </li>
           );
@@ -212,8 +206,8 @@ export function SectionTimelineChart({
               <tr className="border-b border-line text-left text-ink-muted">
                 <th className="px-2 py-2 font-medium">Fecha</th>
                 {series.map((s) => (
-                  <th key={s.postType} className="px-2 py-2 font-medium">
-                    {s.postType}
+                  <th key={s.category.id} className="px-2 py-2 font-medium">
+                    {s.category.name}
                   </th>
                 ))}
               </tr>
@@ -225,7 +219,7 @@ export function SectionTimelineChart({
                   {series.map((s) => {
                     const point = s.points.find((p) => p.date === date);
                     return (
-                      <td key={s.postType} className="px-2 py-2">
+                      <td key={s.category.id} className="px-2 py-2">
                         {point?.value != null ? formatValue(point.value) : "—"}
                       </td>
                     );

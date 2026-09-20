@@ -1,9 +1,10 @@
 // Paleta categórica para series que NO son tipos de post (países, regiones).
 //
-// Son exactamente los mismos siete hexes de `post-type-style.ts`, en el mismo
-// orden: esa secuencia ya está validada contra la superficie de la app
-// (scripts/validate_palette.js de la skill dataviz) en la lista de pares
-// adyacentes, que es la que aplica a líneas y barras —
+// Son exactamente los mismos siete hexes de la paleta de categorías de post
+// (ver `lib/categories.ts`), en el mismo orden: esa secuencia ya está
+// validada contra la superficie de la app (scripts/validate_palette.js de la
+// skill dataviz) en la lista de pares adyacentes, que es la que aplica a
+// líneas y barras —
 //
 //   Banda de luminosidad  PASS · Piso de croma        PASS
 //   Separación CVD        PASS (peor par ΔE 9.1)
@@ -14,7 +15,7 @@
 // directa al final de cada línea y "Ver como tabla". Nunca se generan colores
 // nuevos: pasado el séptimo, las series se pliegan en "Otros".
 //
-// No se importa POST_TYPE_STYLE a propósito: aquel mapa es la identidad fija
+// No se importa esa paleta de categorías a propósito: aquella es la identidad fija
 // de los siete tipos de post y no debe leerse como "el color de Argentina es
 // el de Estelar". Acá el color identifica a una serie dentro de un chart, y
 // el orden se lo fija quien llama.

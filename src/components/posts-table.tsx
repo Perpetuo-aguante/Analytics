@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { formatNumber, formatPercent } from "@/lib/display";
-import { postTypeStyle } from "@/lib/post-type-style";
 import { matchPostType } from "@/lib/post-types";
+import type { Category } from "@/lib/categories";
 import type { CurrentMetric } from "@/lib/supabase/types";
 
 // La lista de posts como tabla ordenable en vez de párrafos apilados: con las
@@ -44,6 +44,7 @@ export function PostsTable({
   column,
   direction,
   sortHref,
+  categories,
 }: {
   rows: CurrentMetric[];
   column: SortColumn;
@@ -51,6 +52,7 @@ export function PostsTable({
   // Se recibe como función porque esta tabla es un server component: quien la
   // usa ya tiene los searchParams y sabe cómo componer el enlace.
   sortHref: (column: SortColumn) => string;
+  categories: Category[];
 }) {
   return (
     <div className="panel overflow-x-auto">
@@ -86,8 +88,8 @@ export function PostsTable({
         </thead>
         <tbody>
           {rows.map((post) => {
-            const canonical = matchPostType(post.post_type);
-            const color = canonical ? postTypeStyle(canonical).color : "var(--line-strong)";
+            const canonical = matchPostType(post.post_type, categories);
+            const color = canonical ? canonical.color : "var(--line-strong)";
             return (
               <tr key={post.post_id} className="border-b border-line/60 transition-colors last:border-0 hover:bg-surface/70">
                 <td className="px-4 py-3">

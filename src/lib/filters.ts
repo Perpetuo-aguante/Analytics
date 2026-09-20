@@ -9,7 +9,8 @@
 // filtro entre secciones sin recalcular nada. Las fechas absolutas se
 // resuelven en el servidor, en cada request (ver resolveRange).
 
-import { LEADERBOARD_POST_TYPES, postTypeFromSlug, postTypeSlug, type LeaderboardPostType } from "./post-types";
+import type { Category } from "./categories";
+import { categoryBySlug } from "./post-types";
 
 // `label` es el texto del chip (corto, cabe en la barra). `scope` es la
 // frase completa del subtítulo, que no siempre es "Últimos " + label:
@@ -41,7 +42,8 @@ export type Filters = {
   // Fechas ya resueltas (YYYY-MM-DD) listas para pasarle a Supabase.
   from: string | null;
   to: string | null;
-  types: LeaderboardPostType[];
+  // Nombres canónicos de categoría (Category["name"]), no slugs.
+  types: string[];
   q: string | null;
 };
 
@@ -77,22 +79,31 @@ export function resolveRange(
 // Los tipos viajan como slugs separados por coma ("estelar,anteojos-editorial")
 // en vez de con los nombres con acentos y espacios: la URL queda legible y no
 // depende de encoding. Se descartan los slugs desconocidos en vez de fallar.
-export function parseTypes(value: string | undefined): LeaderboardPostType[] {
+export function parseTypes(value: string | undefined, categories: Category[]): string[] {
   if (!value) return [];
   const parsed = value
     .split(",")
-    .map((slug) => postTypeFromSlug(slug.trim()))
-    .filter((t): t is LeaderboardPostType => t != null);
-  // Se deduplica y se devuelve en el orden canónico, no en el de la URL, para
-  // que dos URLs con los mismos tipos produzcan exactamente el mismo render.
-  return LEADERBOARD_POST_TYPES.filter((t) => parsed.includes(t));
+    .map((slug) => categoryBySlug(categories, slug.trim()))
+    .filter((c): c is Category => c != null)
+    .map((c) => c.name);
+  // Se deduplica y se devuelve en el orden canónico (el de `categories`), no
+  // en el de la URL, para que dos URLs con los mismos tipos produzcan
+  // exactamente el mismo render.
+  return categories.map((c) => c.name).filter((name) => parsed.includes(name));
 }
 
-export function serializeTypes(types: LeaderboardPostType[]): string {
-  return types.map(postTypeSlug).join(",");
+export function serializeTypes(types: string[], categories: Category[]): string {
+  return types
+    .map((name) => categories.find((c) => c.name === name)?.slug)
+    .filter((slug): slug is string => slug != null)
+    .join(",");
 }
 
-export function parseFilters(params: FilterSearchParams, now: Date = new Date()): Filters {
+export function parseFilters(
+  params: FilterSearchParams,
+  categories: Category[],
+  now: Date = new Date()
+): Filters {
   const raw = params.rango;
   let range: RangeKey;
   if (raw && RANGE_PRESETS.some((p) => p.key === raw)) range = raw as RangePresetKey;
@@ -103,20 +114,20 @@ export function parseFilters(params: FilterSearchParams, now: Date = new Date())
   const { from, to } = resolveRange(range, params.desde, params.hasta, now);
   const q = params.q?.trim();
 
-  return { range, from, to, types: parseTypes(params.tipo), q: q ? q : null };
+  return { range, from, to, types: parseTypes(params.tipo, categories), q: q ? q : null };
 }
 
 // Devuelve los searchParams que representan estos filtros, omitiendo todo lo
 // que esté en su valor por defecto para que la URL quede corta ("/rankings"
 // en vez de "/rankings?rango=todo&tipo=&q=").
-export function filtersToSearchParams(filters: Filters): URLSearchParams {
+export function filtersToSearchParams(filters: Filters, categories: Category[]): URLSearchParams {
   const params = new URLSearchParams();
   if (filters.range !== DEFAULT_RANGE) params.set("rango", filters.range);
   if (filters.range === "custom") {
     if (filters.from) params.set("desde", filters.from);
     if (filters.to) params.set("hasta", filters.to);
   }
-  if (filters.types.length > 0) params.set("tipo", serializeTypes(filters.types));
+  if (filters.types.length > 0) params.set("tipo", serializeTypes(filters.types, categories));
   if (filters.q) params.set("q", filters.q);
   return params;
 }
@@ -126,9 +137,10 @@ export function filtersToSearchParams(filters: Filters): URLSearchParams {
 export function hrefWithFilters(
   pathname: string,
   filters: Filters,
+  categories: Category[],
   extra: Record<string, string | undefined> = {}
 ): string {
-  const params = filtersToSearchParams(filters);
+  const params = filtersToSearchParams(filters, categories);
   for (const [key, value] of Object.entries(extra)) {
     if (value == null || value === "") params.delete(key);
     else params.set(key, value);

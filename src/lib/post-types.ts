@@ -1,45 +1,41 @@
-// Categorías de post para el leaderboard por tipo. El "tipo de post" se
-// carga como texto libre desde el Excel/CSV (ver lib/columns.ts), así que
-// acá lo emparejamos contra esta lista canónica ignorando mayúsculas,
-// acentos y separadores.
+// Lógica que combina las categorías de post (lib/categories.ts, ahora en
+// base de datos) con datos de texto libre: matchear el post_type crudo del
+// CSV contra una categoría, e inferir por día de la semana cuando el CSV no
+// trae tipo.
 
 import { normalizeHeader } from "./columns";
+import type { Category } from "./categories";
 
-export const LEADERBOARD_POST_TYPES = [
-  "Ensayo",
-  "Cuento",
-  "Poema",
-  "El Creativo",
-  "Anteojos Editorial",
-  "Estelar",
-  "Foto-Ensayo",
-] as const;
-
-export type LeaderboardPostType = (typeof LEADERBOARD_POST_TYPES)[number];
-
-// Nombres alternativos/históricos que deben resolver al mismo tipo canónico
-// de arriba. "321 Editorial" fue el nombre de "El Creativo" antes del
-// rebranding: los CSVs viejos siguen trayendo el nombre viejo, y deben
-// agruparse junto con los nuevos en vez de quedar afuera de los leaderboards
-// y timelines por tipo.
-const POST_TYPE_ALIASES: Record<string, LeaderboardPostType> = {
-  "321 editorial": "El Creativo",
+// "321 Editorial" fue el nombre de "El Creativo" antes del rebranding: los
+// CSVs viejos siguen trayendo el nombre viejo, y deben agruparse junto con
+// los nuevos en vez de quedar afuera de los leaderboards y timelines por
+// tipo (ver migración 0004).
+const HISTORICAL_ALIASES: Record<string, string> = {
+  "321 editorial": "el creativo",
 };
 
-// Los tipos de post que efectivamente se envían por newsletter (a diferencia
-// de contenido que solo vive en el sitio). Se usa para los dashboards que
-// siguen la evolución del envío semanal (open rate, views acumuladas).
-export const NEWSLETTER_POST_TYPES = ["Estelar", "El Creativo", "Anteojos Editorial"] as const satisfies readonly LeaderboardPostType[];
-
-const NORMALIZED_TYPES = new Map<string, LeaderboardPostType>([
-  ...LEADERBOARD_POST_TYPES.map((type) => [normalizeHeader(type), type] as const),
-  ...Object.entries(POST_TYPE_ALIASES).map(([alias, canonical]) => [normalizeHeader(alias), canonical] as const),
-]);
-
-export function matchPostType(postType: string | null | undefined): LeaderboardPostType | null {
+// post_type es texto libre cargado desde el CSV/edición manual: puede traer
+// mayúsculas, acentos o separadores distintos al nombre canónico guardado en
+// post_categories. Devuelve la categoría (o null si no matchea ninguna).
+export function matchPostType(postType: string | null | undefined, categories: Category[]): Category | null {
   if (!postType) return null;
-  return NORMALIZED_TYPES.get(normalizeHeader(postType)) ?? null;
+  const normalized = normalizeHeader(postType);
+  const target = HISTORICAL_ALIASES[normalized] ?? normalized;
+  return categories.find((c) => normalizeHeader(c.name) === target) ?? null;
 }
+
+export function categoryBySlug(categories: Category[], slug: string): Category | null {
+  const target = slug.toLowerCase();
+  return categories.find((c) => c.slug === target) ?? null;
+}
+
+// Los tipos que efectivamente se envían por newsletter (a diferencia de
+// contenido que solo vive en el sitio). Se usa para los dashboards que
+// siguen la evolución del envío semanal (open rate, views acumuladas). Es un
+// criterio fijo — qué se manda por mail — y no depende de qué categorías
+// existan hoy, así que se queda como lista de nombres en vez de venir de la
+// base.
+export const NEWSLETTER_POST_TYPE_NAMES = ["Estelar", "El Creativo", "Anteojos Editorial"];
 
 // Calendario editorial fijo: qué tipo de post sale qué día de la semana.
 // Se usa para completar el tipo de post cuando el CSV no lo trae (cada vez
@@ -58,14 +54,14 @@ export function matchPostType(postType: string | null | undefined): LeaderboardP
 //   corrección manual desde "Corregir datos" en /post/[slug].
 // - Cualquier otro día: no hay patrón conocido, se devuelve null (sin
 //   inferencia) en vez de adivinar.
-const WEEKDAY_POST_TYPE: Partial<Record<number, LeaderboardPostType>> = {
+const WEEKDAY_POST_TYPE: Partial<Record<number, string>> = {
   1: "Estelar", // lunes
   3: "Anteojos Editorial", // miércoles
   5: "El Creativo", // viernes (mejor esfuerzo, ver comentario arriba)
 };
 
 // publishedAt: fecha en formato "YYYY-MM-DD" (lo que devuelve parseDateValue).
-export function inferPostTypeFromDate(publishedAt: string | null | undefined): LeaderboardPostType | null {
+export function inferPostTypeFromDate(publishedAt: string | null | undefined): string | null {
   if (!publishedAt) return null;
   const match = publishedAt.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (!match) return null;
@@ -75,40 +71,13 @@ export function inferPostTypeFromDate(publishedAt: string | null | undefined): L
   return WEEKDAY_POST_TYPE[date.getUTCDay()] ?? null;
 }
 
-// ── Slugs para la URL ────────────────────────────────────────────────────
-// Los filtros viajan por querystring (ver lib/filters.ts). Usar el nombre
-// canónico tal cual ("Anteojos Editorial", "Foto-Ensayo") obligaría a
-// encodear espacios y acentos en cada enlace; el slug mantiene la URL legible
-// y estable aunque algún día se renombre la etiqueta visible.
-const POST_TYPE_SLUGS: Record<LeaderboardPostType, string> = {
-  Ensayo: "ensayo",
-  Cuento: "cuento",
-  Poema: "poema",
-  "El Creativo": "el-creativo",
-  "Anteojos Editorial": "anteojos-editorial",
-  Estelar: "estelar",
-  "Foto-Ensayo": "foto-ensayo",
-};
-
-const POST_TYPE_BY_SLUG = new Map<string, LeaderboardPostType>(
-  Object.entries(POST_TYPE_SLUGS).map(([type, slug]) => [slug, type as LeaderboardPostType])
-);
-
-export function postTypeSlug(type: LeaderboardPostType): string {
-  return POST_TYPE_SLUGS[type];
-}
-
-export function postTypeFromSlug(slug: string): LeaderboardPostType | null {
-  return POST_TYPE_BY_SLUG.get(slug.toLowerCase()) ?? null;
-}
-
 // Etiqueta corta para los chips de filtro, donde el ancho importa. Solo
 // difiere del nombre canónico cuando este es demasiado largo para un chip.
-const POST_TYPE_SHORT_LABELS: Partial<Record<LeaderboardPostType, string>> = {
-  "Anteojos Editorial": "Anteojos",
-  "Foto-Ensayo": "Foto",
+const SHORT_LABEL_OVERRIDES: Record<string, string> = {
+  "anteojos editorial": "Anteojos",
+  "foto-ensayo": "Foto",
 };
 
-export function postTypeShortLabel(type: LeaderboardPostType): string {
-  return POST_TYPE_SHORT_LABELS[type] ?? type;
+export function categoryShortLabel(category: Category): string {
+  return SHORT_LABEL_OVERRIDES[normalizeHeader(category.name)] ?? category.name;
 }

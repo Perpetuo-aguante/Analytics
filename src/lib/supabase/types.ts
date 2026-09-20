@@ -41,6 +41,18 @@ export type CurrentMetric = {
   engagement: number | null;
 };
 
+// Fila de post_categories: una categoría de post, gestionable desde /subir
+// (ver lib/categories.ts). Reemplaza a la lista fija que había en código.
+export type PostCategory = {
+  id: string;
+  name: string;
+  slug: string;
+  color: string;
+  shape: string;
+  sort_order: number;
+  created_at: string;
+};
+
 export type Subscriber = {
   id: string;
   email: string;
