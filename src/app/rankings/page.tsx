@@ -5,9 +5,9 @@ import { MetricTabs } from "@/components/metric-tabs";
 import { PageHeader } from "@/components/page-header";
 import { RankingBoard } from "@/components/ranking-board";
 import { getFilteredMetrics, leaderboard, leaderboardsByType } from "@/lib/queries";
+import { getCategories } from "@/lib/categories";
 import { parseFilters, describeFilters, type FilterSearchParams } from "@/lib/filters";
 import { parseMetric } from "@/lib/metrics";
-import { postTypeStyle } from "@/lib/post-type-style";
 
 // El recorte relativo ("últimos 30 días") se resuelve contra la fecha de hoy
 // en cada request, así que esta página nunca se puede prerenderizar.
@@ -17,13 +17,14 @@ type SearchParams = FilterSearchParams & { metrica?: string; vista?: string };
 
 export default async function RankingsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
-  const filters = parseFilters(params);
+  const categories = await getCategories();
+  const filters = parseFilters(params, categories);
   const metric = parseMetric(params.metrica);
   const showAll = params.vista === "todos";
 
-  const rows = await getFilteredMetrics(filters);
+  const rows = await getFilteredMetrics(filters, categories);
   const global = leaderboard(rows, metric, showAll ? null : 12);
-  const byType = leaderboardsByType(rows, metric, showAll ? null : 5);
+  const byType = leaderboardsByType(rows, metric, showAll ? null : 5, categories);
 
   // El toggle "ver todos" se construye desde los params entrantes para que
   // conserve el filtro y la métrica que ya estaban aplicados.
@@ -43,7 +44,7 @@ export default async function RankingsPage({ searchParams }: { searchParams: Pro
       />
 
       <Suspense fallback={<div className="mb-8 h-40" />}>
-        <FilterBar filters={filters} />
+        <FilterBar filters={filters} categories={categories} />
         <MetricTabs active={metric.key} label="Rankear por" />
       </Suspense>
 
@@ -65,6 +66,7 @@ export default async function RankingsPage({ searchParams }: { searchParams: Pro
               subtitle={`${rows.length} ${rows.length === 1 ? "post" : "posts"} en el recorte`}
               rows={global}
               metric={metric}
+              categories={categories}
             />
           </div>
 
@@ -74,13 +76,14 @@ export default async function RankingsPage({ searchParams }: { searchParams: Pro
               El mismo ranking partido por tipo de publicación, para comparar cada sección contra sí misma.
             </p>
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {byType.map(({ postType, rows: typeRows }) => (
+              {byType.map(({ category, rows: typeRows }) => (
                 <RankingBoard
-                  key={postType}
-                  title={postType}
+                  key={category.id}
+                  title={category.name}
                   rows={typeRows}
                   metric={metric}
-                  accentColor={postTypeStyle(postType).color}
+                  accentColor={category.color}
+                  categories={categories}
                 />
               ))}
             </div>

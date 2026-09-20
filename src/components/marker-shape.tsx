@@ -1,4 +1,4 @@
-import type { MarkerShape } from "@/lib/post-type-style";
+import type { MarkerShape } from "@/lib/categories";
 
 // Formas silueteadas para que la identidad de cada tipo de post no dependa
 // solo del color (necesario en el scatter: con 7 tipos ningún orden de color

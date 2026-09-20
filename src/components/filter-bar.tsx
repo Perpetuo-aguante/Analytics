@@ -12,14 +12,16 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
 import { RANGE_PRESETS, serializeTypes, type Filters } from "@/lib/filters";
-import { LEADERBOARD_POST_TYPES, postTypeShortLabel, type LeaderboardPostType } from "@/lib/post-types";
-import { postTypeStyle } from "@/lib/post-type-style";
+import { categoryShortLabel } from "@/lib/post-types";
+import type { Category } from "@/lib/categories";
 
 export function FilterBar({
   filters,
+  categories,
   showSearch = false,
 }: {
   filters: Filters;
+  categories: Category[];
   showSearch?: boolean;
 }) {
   const router = useRouter();
@@ -51,13 +53,13 @@ export function FilterBar({
     });
   }
 
-  function toggleType(type: LeaderboardPostType) {
-    const next = filters.types.includes(type)
-      ? filters.types.filter((t) => t !== type)
-      : [...filters.types, type];
+  function toggleType(name: string) {
+    const next = filters.types.includes(name)
+      ? filters.types.filter((t) => t !== name)
+      : [...filters.types, name];
     navigate((params) => {
       if (next.length === 0) params.delete("tipo");
-      else params.set("tipo", serializeTypes(next));
+      else params.set("tipo", serializeTypes(next, categories));
     });
   }
 
@@ -150,21 +152,21 @@ export function FilterBar({
         >
           Todas las secciones
         </button>
-        {LEADERBOARD_POST_TYPES.map((type) => {
-          const active = filters.types.includes(type);
+        {categories.map((category) => {
+          const active = filters.types.includes(category.name);
           return (
             <button
-              key={type}
+              key={category.id}
               type="button"
-              onClick={() => toggleType(type)}
+              onClick={() => toggleType(category.name)}
               className="chip"
               data-tone="type"
               data-active={active}
               aria-pressed={active}
-              style={{ "--chip-color": postTypeStyle(type).color } as React.CSSProperties}
+              style={{ "--chip-color": category.color } as React.CSSProperties}
             >
               <span className="chip__dot" aria-hidden />
-              {postTypeShortLabel(type)}
+              {categoryShortLabel(category)}
             </button>
           );
         })}

@@ -3,14 +3,22 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updatePost } from "./actions";
-import { LEADERBOARD_POST_TYPES } from "@/lib/post-types";
+import type { Category } from "@/lib/categories";
 import type { MetricSnapshot, Post } from "@/lib/supabase/types";
 
 function fractionToPercentInput(value: number | null): string {
   return value == null ? "" : String(Math.round(value * 1000) / 10);
 }
 
-export function EditPostForm({ post, snapshot }: { post: Post; snapshot: MetricSnapshot | null }) {
+export function EditPostForm({
+  post,
+  snapshot,
+  categories,
+}: {
+  post: Post;
+  snapshot: MetricSnapshot | null;
+  categories: Category[];
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,18 +98,25 @@ export function EditPostForm({ post, snapshot }: { post: Post; snapshot: MetricS
           />
         </label>
         <label className="block text-sm">
-          <span className="text-ink-muted">Tipo de post</span>
-          <input
+          <span className="text-ink-muted">Categoría</span>
+          <select
             value={postType}
             onChange={(e) => setPostType(e.target.value)}
-            list="post-type-options"
             className="mt-1 w-full rounded-full border border-line bg-white/50 px-4 py-2 outline-none focus:border-blue"
-          />
-          <datalist id="post-type-options">
-            {LEADERBOARD_POST_TYPES.map((t) => (
-              <option key={t} value={t} />
+          >
+            <option value="">— sin categoría —</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.name}>
+                {c.name}
+              </option>
             ))}
-          </datalist>
+            {/* Si el post trae un valor de texto libre viejo que no matchea
+                ninguna categoría (ej. un post_type de un CSV antiguo), se
+                muestra igual para no perderlo silenciosamente al guardar. */}
+            {postType && !categories.some((c) => c.name === postType) && (
+              <option value={postType}>{postType} (sin categoría registrada)</option>
+            )}
+          </select>
         </label>
         <label className="block text-sm">
           <span className="text-ink-muted">Fecha de publicación</span>

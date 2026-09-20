@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { formatNumber, formatPercent } from "@/lib/display";
-import { postTypeStyle } from "@/lib/post-type-style";
 import { matchPostType } from "@/lib/post-types";
+import type { Category } from "@/lib/categories";
 import type { RankingMetric } from "@/lib/metrics";
 import type { CurrentMetric } from "@/lib/supabase/types";
 
@@ -21,6 +21,7 @@ export function RankingBoard({
   rows,
   metric,
   accentColor,
+  categories,
 }: {
   title: string;
   subtitle?: string;
@@ -29,6 +30,7 @@ export function RankingBoard({
   // Cuando el board es de una sola sección, todas las barras comparten su
   // color. Si no se pasa, cada barra toma el color de su propia sección.
   accentColor?: string;
+  categories: Category[];
 }) {
   const format = metric.format === "percent" ? formatPercent : formatNumber;
   const values = rows.map((r) => r[metric.column] as number);
@@ -47,8 +49,8 @@ export function RankingBoard({
         <ol className="space-y-3">
           {rows.map((row, i) => {
             const value = row[metric.column] as number;
-            const canonical = matchPostType(row.post_type);
-            const color = accentColor ?? (canonical ? postTypeStyle(canonical).color : "var(--blue)");
+            const canonical = matchPostType(row.post_type, categories);
+            const color = accentColor ?? (canonical ? canonical.color : "var(--blue)");
             return (
               <li key={row.post_id}>
                 <div className="flex items-baseline justify-between gap-3">

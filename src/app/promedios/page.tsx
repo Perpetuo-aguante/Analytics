@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/page-header";
 import { StatTiles } from "@/components/stat-tiles";
 import { LineChart } from "@/components/line-chart";
 import { aggregateMetrics, getFilteredMetrics, getMovingAverages } from "@/lib/queries";
+import { getCategories } from "@/lib/categories";
 import { parseFilters, describeFilters, type FilterSearchParams } from "@/lib/filters";
 import { formatNumber, formatPercent } from "@/lib/display";
 
@@ -11,11 +12,12 @@ export const dynamic = "force-dynamic";
 
 export default async function PromediosPage({ searchParams }: { searchParams: Promise<FilterSearchParams> }) {
   const params = await searchParams;
-  const filters = parseFilters(params);
+  const categories = await getCategories();
+  const filters = parseFilters(params, categories);
 
   const [rows, movingAverages] = await Promise.all([
-    getFilteredMetrics(filters),
-    getMovingAverages(filters),
+    getFilteredMetrics(filters, categories),
+    getMovingAverages(filters, categories),
   ]);
   const aggregate = aggregateMetrics(rows);
 
@@ -35,7 +37,7 @@ export default async function PromediosPage({ searchParams }: { searchParams: Pr
       />
 
       <Suspense fallback={<div className="mb-8 h-40" />}>
-        <FilterBar filters={filters} />
+        <FilterBar filters={filters} categories={categories} />
       </Suspense>
 
       <div className="rise rise-1">

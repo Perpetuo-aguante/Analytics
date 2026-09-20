@@ -5,6 +5,7 @@ import { StatTiles } from "@/components/stat-tiles";
 import { ScatterChart, type ScatterDatum } from "@/components/scatter-chart";
 import { SectionTimelineChart, type TimelineSeries } from "@/components/section-timeline-chart";
 import { aggregateMetrics, getFilteredMetrics, getSectionTimelines, toScatterMetrics } from "@/lib/queries";
+import { getCategories } from "@/lib/categories";
 import { parseFilters, describeFilters, type FilterSearchParams } from "@/lib/filters";
 import { formatNumber, formatPercent } from "@/lib/display";
 
@@ -12,14 +13,15 @@ export const dynamic = "force-dynamic";
 
 export default async function DashboardsPage({ searchParams }: { searchParams: Promise<FilterSearchParams> }) {
   const params = await searchParams;
-  const filters = parseFilters(params);
+  const categories = await getCategories();
+  const filters = parseFilters(params, categories);
 
   const [rows, sectionTimelines] = await Promise.all([
-    getFilteredMetrics(filters),
-    getSectionTimelines(filters),
+    getFilteredMetrics(filters, categories),
+    getSectionTimelines(filters, categories),
   ]);
 
-  const scatterMetrics = toScatterMetrics(rows);
+  const scatterMetrics = toScatterMetrics(rows, categories);
   const totals = aggregateMetrics(rows);
 
   const viewsVsSubscribers: ScatterDatum[] = scatterMetrics
@@ -28,7 +30,7 @@ export default async function DashboardsPage({ searchParams }: { searchParams: P
       id: m.postId,
       slug: m.slug,
       title: m.title,
-      postType: m.postType,
+      category: m.category,
       x: m.views as number,
       y: m.newSubscribers as number,
     }));
@@ -39,18 +41,18 @@ export default async function DashboardsPage({ searchParams }: { searchParams: P
       id: m.postId,
       slug: m.slug,
       title: m.title,
-      postType: m.postType,
+      category: m.category,
       x: m.views as number,
       y: m.openRate as number,
     }));
 
-  const openRateSeries: TimelineSeries[] = sectionTimelines.map(({ postType, points }) => ({
-    postType,
+  const openRateSeries: TimelineSeries[] = sectionTimelines.map(({ category, points }) => ({
+    category,
     points: points.map((p) => ({ date: p.date, value: p.openRate })),
   }));
 
-  const cumulativeViewsSeries: TimelineSeries[] = sectionTimelines.map(({ postType, points }) => ({
-    postType,
+  const cumulativeViewsSeries: TimelineSeries[] = sectionTimelines.map(({ category, points }) => ({
+    category,
     points: points.map((p) => ({ date: p.date, value: p.views })),
   }));
 
@@ -63,7 +65,7 @@ export default async function DashboardsPage({ searchParams }: { searchParams: P
       />
 
       <Suspense fallback={<div className="mb-8 h-40" />}>
-        <FilterBar filters={filters} />
+        <FilterBar filters={filters} categories={categories} />
       </Suspense>
 
       <div className="rise rise-1">
@@ -89,7 +91,7 @@ export default async function DashboardsPage({ searchParams }: { searchParams: P
               Arriba a la derecha está lo que pegó por todos lados. Arriba a la izquierda, lo que abrió muy bien
               pero circuló poco: candidatos a volver a empujar.
             </p>
-            <ScatterChart data={openRateVsViews} xLabel="Views" yLabel="Open rate" yFormat="percent" />
+            <ScatterChart data={openRateVsViews} categories={categories} xLabel="Views" yLabel="Open rate" yFormat="percent" />
           </section>
 
           <section className="panel rise rise-3 p-5 sm:p-6">
@@ -97,7 +99,7 @@ export default async function DashboardsPage({ searchParams }: { searchParams: P
             <p className="mb-5 mt-1 text-sm text-ink-secondary">
               Qué posts convierten lectura en suscripción, y cuáles se leen mucho sin dejar nadie atrás.
             </p>
-            <ScatterChart data={viewsVsSubscribers} xLabel="Views" yLabel="Nuevos suscriptores" />
+            <ScatterChart data={viewsVsSubscribers} categories={categories} xLabel="Views" yLabel="Nuevos suscriptores" />
           </section>
 
           <section className="panel rise rise-4 p-5 sm:p-6">

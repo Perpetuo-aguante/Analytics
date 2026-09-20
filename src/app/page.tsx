@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/page-header";
 import { StatTiles } from "@/components/stat-tiles";
 import { PostsTable, parseSort, sortPosts, type SortColumn } from "@/components/posts-table";
 import { aggregateMetrics, getFilteredMetrics } from "@/lib/queries";
+import { getCategories } from "@/lib/categories";
 import { parseFilters, describeFilters, type FilterSearchParams } from "@/lib/filters";
 import { formatNumber, formatPercent } from "@/lib/display";
 
@@ -13,10 +14,11 @@ type SearchParams = FilterSearchParams & { orden?: string; dir?: string };
 
 export default async function HomePage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
-  const filters = parseFilters(params);
+  const categories = await getCategories();
+  const filters = parseFilters(params, categories);
   const { column, direction } = parseSort(params.orden, params.dir);
 
-  const rows = await getFilteredMetrics(filters);
+  const rows = await getFilteredMetrics(filters, categories);
   const totals = aggregateMetrics(rows);
   const sorted = sortPosts(rows, column, direction);
 
@@ -40,7 +42,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       />
 
       <Suspense fallback={<div className="mb-8 h-40" />}>
-        <FilterBar filters={filters} showSearch />
+        <FilterBar filters={filters} categories={categories} showSearch />
       </Suspense>
 
       <div className="rise rise-1">
@@ -55,7 +57,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       </div>
 
       <div className="rise rise-2">
-        <PostsTable rows={sorted} column={column} direction={direction} sortHref={sortHref} />
+        <PostsTable rows={sorted} column={column} direction={direction} sortHref={sortHref} categories={categories} />
       </div>
     </main>
   );

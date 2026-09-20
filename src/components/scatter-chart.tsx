@@ -3,15 +3,14 @@
 import { useId, useState } from "react";
 import { niceTicks } from "@/lib/chart-scale";
 import { formatNumber, formatPercent } from "@/lib/display";
-import { LEADERBOARD_POST_TYPES, type LeaderboardPostType } from "@/lib/post-types";
-import { postTypeStyle } from "@/lib/post-type-style";
+import type { Category } from "@/lib/categories";
 import { MarkerShapeIcon } from "./marker-shape";
 
 export type ScatterDatum = {
   id: string;
   slug: string;
   title: string;
-  postType: LeaderboardPostType;
+  category: Category;
   x: number;
   y: number;
 };
@@ -35,6 +34,7 @@ function axisMax(values: number[]): number {
 
 export function ScatterChart({
   data,
+  categories,
   xLabel,
   yLabel,
   xFormat = "number",
@@ -43,6 +43,10 @@ export function ScatterChart({
   height = 440,
 }: {
   data: ScatterDatum[];
+  // La lista completa (no solo la presente en `data`) para que el orden del
+  // legend sea siempre el mismo — el de sort_order — en vez de depender de
+  // en qué orden vienen las filas.
+  categories: Category[];
   xLabel: string;
   yLabel: string;
   xFormat?: AxisFormat;
@@ -53,16 +57,16 @@ export function ScatterChart({
   const formatX = FORMATTERS[xFormat];
   const formatY = FORMATTERS[yFormat];
   const titleId = useId();
-  const [hidden, setHidden] = useState<Set<LeaderboardPostType>>(() => new Set());
+  const [hidden, setHidden] = useState<Set<string>>(() => new Set());
   const [active, setActive] = useState<ScatterDatum | null>(null);
 
-  const typesPresent = LEADERBOARD_POST_TYPES.filter((t) => data.some((d) => d.postType === t));
+  const typesPresent = categories.filter((c) => data.some((d) => d.category.id === c.id));
 
-  function toggle(type: LeaderboardPostType) {
+  function toggle(categoryId: string) {
     setHidden((prev) => {
       const next = new Set(prev);
-      if (next.has(type)) next.delete(type);
-      else next.add(type);
+      if (next.has(categoryId)) next.delete(categoryId);
+      else next.add(categoryId);
       return next;
     });
   }
@@ -82,7 +86,7 @@ export function ScatterChart({
   const scaleX = (v: number) => padding.left + (v / xMax) * innerWidth;
   const scaleY = (v: number) => padding.top + innerHeight - (v / yMax) * innerHeight;
 
-  const visible = data.filter((d) => !hidden.has(d.postType));
+  const visible = data.filter((d) => !hidden.has(d.category.id));
 
   return (
     <div className="w-full">
@@ -141,7 +145,7 @@ export function ScatterChart({
           </text>
 
           {visible.map((d) => {
-            const style = postTypeStyle(d.postType);
+            const style = d.category;
             const cx = scaleX(d.x);
             const cy = scaleY(d.y);
             return (
@@ -151,7 +155,7 @@ export function ScatterChart({
               <a
                 key={d.id}
                 href={`/post/${d.slug}`}
-                aria-label={`${d.title}: ${xLabel} ${formatX(d.x)}, ${yLabel} ${formatY(d.y)} (${d.postType})`}
+                aria-label={`${d.title}: ${xLabel} ${formatX(d.x)}, ${yLabel} ${formatY(d.y)} (${d.category.name})`}
                 onMouseEnter={() => setActive(d)}
                 onMouseLeave={() => setActive((cur) => (cur?.id === d.id ? null : cur))}
                 onFocus={() => setActive(d)}
@@ -181,10 +185,10 @@ export function ScatterChart({
             <p className="mt-0.5 flex items-center gap-1.5 text-ink-muted">
               <span
                 className="inline-block h-2 w-2 rounded-full"
-                style={{ background: postTypeStyle(active.postType).color }}
+                style={{ background: active.category.color }}
                 aria-hidden
               />
-              {active.postType}
+              {active.category.name}
             </p>
             <p className="tnum mt-1.5 text-ink-muted">
               {xLabel} <span className="font-semibold text-ink">{formatX(active.x)}</span>
@@ -197,21 +201,20 @@ export function ScatterChart({
       </div>
 
       <ul className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm">
-        {typesPresent.map((type) => {
-          const style = postTypeStyle(type);
-          const isHidden = hidden.has(type);
+        {typesPresent.map((category) => {
+          const isHidden = hidden.has(category.id);
           return (
-            <li key={type}>
+            <li key={category.id}>
               <button
                 type="button"
-                onClick={() => toggle(type)}
+                onClick={() => toggle(category.id)}
                 aria-pressed={!isHidden}
                 className={`chip ${isHidden ? "opacity-40" : ""}`}
               >
                 <svg width={12} height={12} viewBox="0 0 12 12" aria-hidden>
-                  <MarkerShapeIcon shape={style.shape} cx={6} cy={6} size={9} color={style.color} />
+                  <MarkerShapeIcon shape={category.shape} cx={6} cy={6} size={9} color={category.color} />
                 </svg>
-                {type}
+                {category.name}
               </button>
             </li>
           );
@@ -234,7 +237,7 @@ export function ScatterChart({
               {data.map((d) => (
                 <tr key={d.id} className="border-b border-line/60">
                   <td className="px-2 py-2">{d.title}</td>
-                  <td className="px-2 py-2">{d.postType}</td>
+                  <td className="px-2 py-2">{d.category.name}</td>
                   <td className="px-2 py-2">{formatX(d.x)}</td>
                   <td className="px-2 py-2">{formatY(d.y)}</td>
                 </tr>

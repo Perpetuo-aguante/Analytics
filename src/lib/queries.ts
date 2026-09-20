@@ -1,6 +1,7 @@
 import { createAnonClient } from "./supabase/server";
 import type { CurrentMetric, MetricSnapshot, Post } from "./supabase/types";
-import { LEADERBOARD_POST_TYPES, NEWSLETTER_POST_TYPES, matchPostType, type LeaderboardPostType } from "./post-types";
+import { NEWSLETTER_POST_TYPE_NAMES, matchPostType } from "./post-types";
+import type { Category } from "./categories";
 import type { Filters } from "./filters";
 import { rankBy, type RankingMetric } from "./metrics";
 
@@ -14,19 +15,20 @@ import { rankBy, type RankingMetric } from "./metrics";
 // históricos ("321 Editorial" = "El Creativo"), así que un .in() por nombre
 // exacto dejaría fuera los posts viejos. matchPostType resuelve los alias, y
 // el volumen (cientos de posts) hace que filtrar en memoria no cueste nada.
-function matchesTypes(postType: string | null, types: LeaderboardPostType[]): boolean {
+function matchesTypes(postType: string | null, types: string[], categories: Category[]): boolean {
   if (types.length === 0) return true;
-  const canonical = matchPostType(postType);
-  return canonical != null && types.includes(canonical);
+  const canonical = matchPostType(postType, categories);
+  return canonical != null && types.includes(canonical.name);
 }
 
 function applyRowFilters<T extends { post_type: string | null; title?: string }>(
   rows: T[],
-  filters: Filters
+  filters: Filters,
+  categories: Category[]
 ): T[] {
   const needle = filters.q?.toLowerCase();
   return rows.filter((row) => {
-    if (!matchesTypes(row.post_type, filters.types)) return false;
+    if (!matchesTypes(row.post_type, filters.types, categories)) return false;
     if (needle && !(row.title ?? "").toLowerCase().includes(needle)) return false;
     return true;
   });
@@ -35,7 +37,7 @@ function applyRowFilters<T extends { post_type: string | null; title?: string }>
 // Trae el snapshot más reciente de cada post, ya recortado. Es la fuente de
 // la tabla de posts, de los rankings y del scatter: una sola consulta por
 // página en lugar de una por sección.
-export async function getFilteredMetrics(filters: Filters): Promise<CurrentMetric[]> {
+export async function getFilteredMetrics(filters: Filters, categories: Category[]): Promise<CurrentMetric[]> {
   const supabase = createAnonClient();
   let query = supabase.from("current_metrics").select("*");
   // Filtrar por fecha excluye a propósito los posts sin published_at: no se
@@ -45,7 +47,7 @@ export async function getFilteredMetrics(filters: Filters): Promise<CurrentMetri
 
   const { data, error } = await query.order("published_at", { ascending: false, nullsFirst: false });
   if (error) throw new Error(error.message);
-  return applyRowFilters((data ?? []) as CurrentMetric[], filters);
+  return applyRowFilters((data ?? []) as CurrentMetric[], filters, categories);
 }
 
 // Ranking global por la métrica elegida. limit null = todos.
@@ -60,20 +62,21 @@ export function leaderboard(rows: CurrentMetric[], metric: RankingMetric, limit:
 export function leaderboardsByType(
   rows: CurrentMetric[],
   metric: RankingMetric,
-  limit: number | null
-): { postType: LeaderboardPostType; rows: CurrentMetric[] }[] {
-  const grouped = new Map<LeaderboardPostType, CurrentMetric[]>(
-    LEADERBOARD_POST_TYPES.map((type) => [type, []])
-  );
+  limit: number | null,
+  categories: Category[]
+): { category: Category; rows: CurrentMetric[] }[] {
+  const grouped = new Map<string, CurrentMetric[]>(categories.map((c) => [c.id, []]));
   for (const row of rows) {
-    const type = matchPostType(row.post_type);
-    if (type) grouped.get(type)!.push(row);
+    const category = matchPostType(row.post_type, categories);
+    if (category) grouped.get(category.id)!.push(row);
   }
 
-  return LEADERBOARD_POST_TYPES.map((postType) => {
-    const sorted = rankBy(grouped.get(postType) ?? [], metric);
-    return { postType, rows: limit == null ? sorted : sorted.slice(0, limit) };
-  }).filter((group) => group.rows.length > 0);
+  return categories
+    .map((category) => {
+      const sorted = rankBy(grouped.get(category.id) ?? [], metric);
+      return { category, rows: limit == null ? sorted : sorted.slice(0, limit) };
+    })
+    .filter((group) => group.rows.length > 0);
 }
 
 export async function getPostBySlug(slug: string): Promise<Post | null> {
@@ -83,30 +86,30 @@ export async function getPostBySlug(slug: string): Promise<Post | null> {
   return data as Post | null;
 }
 
-// Punto de un scatter: un post con su tipo canónico ya resuelto (se descartan
-// los que no matchean ningún tipo, para que el color/forma sean siempre
-// válidos).
+// Punto de un scatter: un post con su categoría canónica ya resuelta (se
+// descartan los que no matchean ninguna, para que el color/forma sean
+// siempre válidos).
 export type ScatterMetric = {
   postId: string;
   slug: string;
   title: string;
-  postType: LeaderboardPostType;
+  category: Category;
   views: number | null;
   newSubscribers: number | null;
   openRate: number | null;
   engagement: number | null;
 };
 
-export function toScatterMetrics(rows: CurrentMetric[]): ScatterMetric[] {
+export function toScatterMetrics(rows: CurrentMetric[], categories: Category[]): ScatterMetric[] {
   const result: ScatterMetric[] = [];
   for (const row of rows) {
-    const postType = matchPostType(row.post_type);
-    if (!postType) continue;
+    const category = matchPostType(row.post_type, categories);
+    if (!category) continue;
     result.push({
       postId: row.post_id,
       slug: row.slug,
       title: row.title,
-      postType,
+      category,
       views: row.views,
       newSubscribers: row.new_subscribers,
       openRate: row.open_rate,
@@ -122,8 +125,9 @@ export type SectionTimelinePoint = { date: string; openRate: number | null; view
 // carga semanal (snapshot_date es común a todos los posts de una carga, ver
 // schema.sql). Respeta el filtro de fecha de publicación y el de sección.
 export async function getSectionTimelines(
-  filters: Filters
-): Promise<{ postType: LeaderboardPostType; points: SectionTimelinePoint[] }[]> {
+  filters: Filters,
+  categories: Category[]
+): Promise<{ category: Category; points: SectionTimelinePoint[] }[]> {
   const supabase = createAnonClient();
   let postsQuery = supabase.from("posts").select("id, post_type, published_at");
   if (filters.from) postsQuery = postsQuery.gte("published_at", filters.from);
@@ -139,22 +143,24 @@ export async function getSectionTimelines(
   // Si el usuario no eligió secciones, se muestran las que se envían por
   // newsletter (las únicas donde "open rate por carga" significa algo). Si
   // eligió, manda su elección.
-  const requested: readonly LeaderboardPostType[] =
-    filters.types.length > 0 ? filters.types : NEWSLETTER_POST_TYPES;
+  const requested: Category[] =
+    filters.types.length > 0
+      ? categories.filter((c) => filters.types.includes(c.name))
+      : categories.filter((c) => NEWSLETTER_POST_TYPE_NAMES.includes(c.name));
 
-  const typeByPostId = new Map<string, LeaderboardPostType>();
+  const categoryByPostId = new Map<string, Category>();
   for (const post of postsRes.data ?? []) {
-    const postType = matchPostType(post.post_type);
-    if (postType && requested.includes(postType)) typeByPostId.set(post.id, postType);
+    const category = matchPostType(post.post_type, categories);
+    if (category && requested.some((r) => r.id === category.id)) categoryByPostId.set(post.id, category);
   }
 
   type Bucket = { openRateSum: number; openRateCount: number; viewsSum: number; hasViews: boolean };
-  const buckets = new Map<string, Bucket>(); // key: `${postType}|${snapshot_date}`
+  const buckets = new Map<string, Bucket>(); // key: `${category.id}|${snapshot_date}`
 
   for (const snap of snapshotsRes.data ?? []) {
-    const postType = typeByPostId.get(snap.post_id);
-    if (!postType) continue;
-    const key = `${postType}|${snap.snapshot_date}`;
+    const category = categoryByPostId.get(snap.post_id);
+    if (!category) continue;
+    const key = `${category.id}|${snap.snapshot_date}`;
     const bucket = buckets.get(key) ?? { openRateSum: 0, openRateCount: 0, viewsSum: 0, hasViews: false };
     if (snap.open_rate != null) {
       bucket.openRateSum += snap.open_rate;
@@ -168,14 +174,14 @@ export async function getSectionTimelines(
   }
 
   return requested
-    .map((postType) => {
+    .map((category) => {
       const dates = Array.from(buckets.keys())
-        .filter((key) => key.startsWith(`${postType}|`))
-        .map((key) => key.slice(postType.length + 1))
+        .filter((key) => key.startsWith(`${category.id}|`))
+        .map((key) => key.slice(category.id.length + 1))
         .sort();
 
       const points: SectionTimelinePoint[] = dates.map((date) => {
-        const bucket = buckets.get(`${postType}|${date}`)!;
+        const bucket = buckets.get(`${category.id}|${date}`)!;
         return {
           date,
           openRate: bucket.openRateCount > 0 ? bucket.openRateSum / bucket.openRateCount : null,
@@ -183,7 +189,7 @@ export async function getSectionTimelines(
         };
       });
 
-      return { postType, points };
+      return { category, points };
     })
     .filter((series) => series.points.length > 0);
 }
@@ -263,7 +269,7 @@ function emptyMetricBucket(): MetricBucket {
 // por carga semanal: primero el promedio transversal de cada carga (todos los
 // posts que matchean el filtro, en esa fecha) y después una ventana móvil de
 // MOVING_AVERAGE_WINDOW cargas para bajar el ruido semana a semana.
-export async function getMovingAverages(filters: Filters): Promise<MovingAveragePoint[]> {
+export async function getMovingAverages(filters: Filters, categories: Category[]): Promise<MovingAveragePoint[]> {
   const supabase = createAnonClient();
   let postsQuery = supabase.from("posts").select("id, post_type, published_at");
   if (filters.from) postsQuery = postsQuery.gte("published_at", filters.from);
@@ -278,7 +284,7 @@ export async function getMovingAverages(filters: Filters): Promise<MovingAverage
 
   const includedPostIds = new Set(
     (postsRes.data ?? [])
-      .filter((p) => matchesTypes(p.post_type as string | null, filters.types))
+      .filter((p) => matchesTypes(p.post_type as string | null, filters.types, categories))
       .map((p) => p.id as string)
   );
 

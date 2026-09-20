@@ -1,9 +1,11 @@
 import { cookies } from "next/headers";
 import { isValidSessionCookieValue, SESSION_COOKIE_NAME } from "@/lib/session";
+import { getCategories } from "@/lib/categories";
 import { LoginForm } from "./login-form";
 import { Uploader } from "./uploader";
 import { ManageUploads } from "./manage-uploads";
 import { DuplicateFinder } from "./duplicate-finder";
+import { CategoryManager } from "./category-manager";
 import { SubscribersUploader } from "./subscribers-uploader";
 import { SubscribersManageUploads } from "./subscribers-manage-uploads";
 import { logout } from "./actions";
@@ -21,6 +23,8 @@ export default async function SubirPage() {
     );
   }
 
+  const categories = await getCategories();
+
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
       <div className="mb-10 flex items-center justify-between">
@@ -31,6 +35,8 @@ export default async function SubirPage() {
           </button>
         </form>
       </div>
+      <CategoryManager initialCategories={categories} />
+      <hr className="my-12 border-line" />
       <h2 className="mb-6 font-display text-xl font-semibold">Métricas de posts</h2>
       <Uploader />
       <hr className="my-12 border-line" />
