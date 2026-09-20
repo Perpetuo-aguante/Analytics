@@ -10,9 +10,9 @@ import {
   SESSION_MAX_AGE,
 } from "@/lib/session";
 import { parseUploadedFile } from "@/lib/parse";
-import { suggestMapping, type FieldKey } from "@/lib/columns";
+import { findSignupsAndSubscribesHeaders, suggestMapping, type FieldKey } from "@/lib/columns";
 import { cellToString, parseDateValue, parseIntValue, parseRateValue, slugify } from "@/lib/format";
-import { similarity } from "@/lib/dedupe";
+import { looksLikeSlug, similarity } from "@/lib/dedupe";
 import { inferPostTypeFromDate } from "@/lib/post-types";
 import { createAdminClient } from "@/lib/supabase/server";
 
@@ -22,6 +22,12 @@ import { createAdminClient } from "@/lib/supabase/server";
 // detecta variantes como slug-crudo-vs-título-real sin generar demasiados
 // falsos positivos entre títulos legítimamente distintos.
 const DUPLICATE_SIMILARITY_THRESHOLD = 0.82;
+// Cuando el título de alguno de los dos posts es en realidad un slug crudo
+// (ver dedupe.ts:looksLikeSlug) comparamos más generosamente: ese es
+// exactamente el caso que motivó este detector, y un slug crudo puede
+// diferir del título real más de lo que difieren dos títulos reales entre
+// sí (trunca palabras, no lleva tildes/mayúsculas).
+const SLUG_TITLE_SIMILARITY_THRESHOLD = 0.6;
 
 export type LoginState = { error: string | null };
 
@@ -69,8 +75,30 @@ export async function parseFile(
     if (rows.length === 0) {
       return { data: null, error: "El archivo no tiene filas de datos." };
     }
+
+    // Si el archivo trae signups y subscribes/subscribers como columnas
+    // separadas (lo normal en el export de posts de Substack), no hacemos
+    // elegir una: se suman en una columna sintética y esa es la que se
+    // sugiere para "Nuevos suscriptores", para no volver a preguntar.
+    const { signups, subscribes } = findSignupsAndSubscribesHeaders(headers);
+    let effectiveHeaders = headers;
+    let effectiveRows = rows;
+    if (signups && subscribes) {
+      const combinedHeader = `Nuevos suscriptores (${signups} + ${subscribes}, sumado automáticamente)`;
+      effectiveHeaders = [...headers, combinedHeader];
+      effectiveRows = rows.map((row) => ({
+        ...row,
+        [combinedHeader]: (parseIntValue(row[signups]) ?? 0) + (parseIntValue(row[subscribes]) ?? 0),
+      }));
+    }
+
+    const suggestedMapping = suggestMapping(effectiveHeaders);
+    if (signups && subscribes) {
+      suggestedMapping.new_subscribers = `Nuevos suscriptores (${signups} + ${subscribes}, sumado automáticamente)`;
+    }
+
     return {
-      data: { headers, rows, rowCount: rows.length, suggestedMapping: suggestMapping(headers) },
+      data: { headers: effectiveHeaders, rows: effectiveRows, rowCount: effectiveRows.length, suggestedMapping },
       error: null,
     };
   } catch (err) {
@@ -335,8 +363,19 @@ export async function findDuplicateCandidates(): Promise<{ data: DuplicateCandid
     const candidates: DuplicateCandidate[] = [];
     for (let i = 0; i < posts.length; i++) {
       for (let j = i + 1; j < posts.length; j++) {
-        const sim = similarity(posts[i].slug, posts[j].slug);
-        if (sim >= DUPLICATE_SIMILARITY_THRESHOLD) {
+        // Comparamos por slug Y por título: un post cargado con el slug
+        // crudo como título puede parecerse poco en slug (Substack lo
+        // truncó distinto) pero el título real sigue siendo reconocible, o
+        // viceversa.
+        const sim = Math.max(
+          similarity(posts[i].slug, posts[j].slug),
+          similarity(posts[i].title, posts[j].title)
+        );
+        const threshold =
+          looksLikeSlug(posts[i].title) || looksLikeSlug(posts[j].title)
+            ? SLUG_TITLE_SIMILARITY_THRESHOLD
+            : DUPLICATE_SIMILARITY_THRESHOLD;
+        if (sim >= threshold) {
           candidates.push({
             postA: {
               id: posts[i].id,

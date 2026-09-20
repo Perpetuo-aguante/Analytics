@@ -101,3 +101,39 @@ export function suggestMapping(headers: string[]): Record<FieldKey, string | nul
   }
   return result;
 }
+
+// El export de posts de Substack siempre trae DOS columnas separadas para
+// suscriptores nuevos: una de signups (gratis) y otra de subscribes/
+// subscribers (pagos) — el nombre exacto de cada una varía entre exports.
+// Antes esto obligaba a elegir una sola columna a mano en cada carga; en
+// vez de eso, cuando las dos están presentes se detectan y se suman
+// automáticamente (ver findSignupsAndSubscribesHeaders, usado en
+// subir/actions.ts) para que "Nuevos suscriptores" sea siempre el total.
+const SIGNUPS_ALIASES = ["signups", "signup", "nuevos signups"];
+const SUBSCRIBES_ALIASES = [
+  "subscribes",
+  "subscribers",
+  "subscribe",
+  "subscriber",
+  "nuevos subscribers",
+  "suscriptores pagos",
+];
+
+function findHeaderByAlias(
+  normalized: { raw: string; norm: string }[],
+  aliases: string[]
+): string | null {
+  const match = normalized.find((h) => aliases.includes(h.norm));
+  return match ? match.raw : null;
+}
+
+export function findSignupsAndSubscribesHeaders(headers: string[]): {
+  signups: string | null;
+  subscribes: string | null;
+} {
+  const normalized = headers.map((raw) => ({ raw, norm: normalizeHeader(raw) }));
+  return {
+    signups: findHeaderByAlias(normalized, SIGNUPS_ALIASES),
+    subscribes: findHeaderByAlias(normalized, SUBSCRIBES_ALIASES),
+  };
+}
