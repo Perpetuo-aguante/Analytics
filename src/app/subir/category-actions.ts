@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { normalizeHeader } from "@/lib/columns";
 import { slugify } from "@/lib/format";
 import { autoStyleForIndex, getCategories, type Category } from "@/lib/categories";
-import { matchPostType } from "@/lib/post-types";
+import { matchPostCategories } from "@/lib/post-types";
 
 export type CategoryActionResult = { error: string | null };
 
@@ -56,7 +56,8 @@ export async function createCategory(name: string): Promise<CategoryActionResult
   }
 }
 
-// Borra una categoría — solo si ningún post la usa hoy (matcheando alias
+// Borra una categoría — solo si ningún post la usa hoy, ni como principal ni
+// como adicional (matcheando alias
 // como matchPostType, no por igualdad exacta, para no dejar pasar posts que
 // la usan bajo un nombre histórico distinto). No hay fusión automática: si
 // hay posts con esa categoría, hay que recategorizarlos primero desde
@@ -70,11 +71,13 @@ export async function deleteCategory(id: string): Promise<CategoryActionResult> 
     const category = categories.find((c) => c.id === id);
     if (!category) return { error: "Esa categoría ya no existe." };
 
-    const { data: posts, error: postsError } = await supabase.from("posts").select("post_type");
+    const { data: posts, error: postsError } = await supabase.from("posts").select("post_type, extra_post_types");
     if (postsError) return { error: postsError.message };
 
-    const inUseCount = (posts ?? []).filter(
-      (p) => matchPostType(p.post_type as string | null, categories)?.id === id
+    const inUseCount = (posts ?? []).filter((p) =>
+      matchPostCategories(p.post_type as string | null, p.extra_post_types as string[] | null, categories).some(
+        (c) => c.id === id
+      )
     ).length;
     if (inUseCount > 0) {
       return {

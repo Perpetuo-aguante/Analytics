@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { formatNumber, formatPercent } from "@/lib/display";
-import { matchPostType } from "@/lib/post-types";
+import { formatMoney, formatNumber, formatPercent } from "@/lib/display";
+import { matchPostCategories } from "@/lib/post-types";
 import type { Category } from "@/lib/categories";
 import type { RankingMetric } from "@/lib/metrics";
 import type { CurrentMetric } from "@/lib/supabase/types";
@@ -32,7 +32,7 @@ export function RankingBoard({
   accentColor?: string;
   categories: Category[];
 }) {
-  const format = metric.format === "percent" ? formatPercent : formatNumber;
+  const format = metric.format === "percent" ? formatPercent : metric.format === "money" ? formatMoney : formatNumber;
   const values = rows.map((r) => r[metric.column] as number);
   const max = Math.max(...values, 0) || 1;
 
@@ -49,7 +49,7 @@ export function RankingBoard({
         <ol className="space-y-3">
           {rows.map((row, i) => {
             const value = row[metric.column] as number;
-            const canonical = matchPostType(row.post_type, categories);
+            const [canonical] = matchPostCategories(row.post_type, row.extra_post_types, categories);
             const color = accentColor ?? (canonical ? canonical.color : "var(--blue)");
             return (
               <li key={row.post_id}>

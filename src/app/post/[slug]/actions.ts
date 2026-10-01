@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/session";
 import { createAdminClient } from "@/lib/supabase/server";
-import { parseIntValue } from "@/lib/format";
+import { parseIntValue, parseMoneyValue } from "@/lib/format";
 
 export type UpdatePostInput = {
   postId: string;
@@ -12,12 +12,14 @@ export type UpdatePostInput = {
   title: string;
   author: string;
   postType: string;
+  extraPostTypes: string[];
   publishedAt: string;
   views: string;
   newSubscribers: string;
   openRate: string;
   clickToOpenRate: string;
   engagement: string;
+  estimatedValue: string;
 };
 
 export type UpdatePostResult = { error: string | null };
@@ -42,12 +44,20 @@ export async function updatePost(input: UpdatePostInput): Promise<UpdatePostResu
     const title = input.title.trim();
     if (!title) return { error: "El título no puede quedar vacío." };
 
+    // Las categorías adicionales no repiten la principal ni se repiten entre
+    // sí (ver migración 0006).
+    const postType = input.postType.trim() || null;
+    const extraPostTypes = Array.from(
+      new Set(input.extraPostTypes.map((t) => t.trim()).filter((t) => t && t !== postType))
+    );
+
     const { error: postError } = await supabase
       .from("posts")
       .update({
         title,
         author: input.author.trim() || null,
-        post_type: input.postType.trim() || null,
+        post_type: postType,
+        extra_post_types: extraPostTypes,
         published_at: input.publishedAt || null,
       })
       .eq("id", input.postId);
@@ -62,6 +72,7 @@ export async function updatePost(input: UpdatePostInput): Promise<UpdatePostResu
           open_rate: percentToFraction(input.openRate),
           click_to_open_rate: percentToFraction(input.clickToOpenRate),
           engagement: percentToFraction(input.engagement),
+          estimated_value: parseMoneyValue(input.estimatedValue),
         })
         .eq("id", input.snapshotId);
       if (snapshotError) return { error: `No se pudo guardar las métricas: ${snapshotError.message}` };
@@ -69,6 +80,8 @@ export async function updatePost(input: UpdatePostInput): Promise<UpdatePostResu
 
     revalidatePath("/");
     revalidatePath("/rankings");
+    revalidatePath("/dashboards");
+    revalidatePath("/promedios");
     revalidatePath(`/post/${input.slug}`);
 
     return { error: null };

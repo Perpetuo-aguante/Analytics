@@ -7,6 +7,8 @@ export type Post = {
   published_at: string | null;
   topic: string | null;
   post_type: string | null;
+  // Categorías adicionales a post_type (ver migración 0006). Nunca null.
+  extra_post_types: string[];
   created_at: string;
   updated_at: string;
 };
@@ -20,6 +22,8 @@ export type MetricSnapshot = {
   open_rate: number | null;
   click_to_open_rate: number | null;
   engagement: number | null;
+  // "Estimated value" del export de Substack, en dólares.
+  estimated_value: number | null;
   created_at: string;
 };
 
@@ -33,12 +37,14 @@ export type CurrentMetric = {
   published_at: string | null;
   topic: string | null;
   post_type: string | null;
+  extra_post_types: string[];
   snapshot_date: string;
   views: number | null;
   new_subscribers: number | null;
   open_rate: number | null;
   click_to_open_rate: number | null;
   engagement: number | null;
+  estimated_value: number | null;
 };
 
 // Fila de post_categories: una categoría de post, gestionable desde /subir

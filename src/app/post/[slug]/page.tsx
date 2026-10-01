@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
 import { getPostBySlug, getSnapshotsForPost } from "@/lib/queries";
 import { getCategories } from "@/lib/categories";
+import { matchPostCategories } from "@/lib/post-types";
 import { LineChart, type ChartPoint } from "@/components/line-chart";
 import { EditPostForm } from "./edit-form";
 import { isValidSessionCookieValue, SESSION_COOKIE_NAME } from "@/lib/session";
@@ -20,6 +21,9 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
   ]);
   const isAdmin = isValidSessionCookieValue(cookieStore.get(SESSION_COOKIE_NAME)?.value);
   const latestSnapshot = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
+  const postCategories = matchPostCategories(post.post_type, post.extra_post_types, categories);
+  const categoryLabel =
+    postCategories.length > 0 ? postCategories.map((c) => c.name).join(", ") : (post.post_type ?? "—");
 
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-12">
@@ -29,7 +33,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
       <h1 className="mt-4 font-display text-3xl font-semibold">{post.title}</h1>
       {post.author && <p className="mt-1 text-sm text-ink-muted">{post.author}</p>}
       <p className="mt-2 text-sm text-ink-muted">
-        {post.topic ?? "—"} · {post.post_type ?? "—"} · {post.published_at ?? "sin fecha"}
+        {post.topic ?? "—"} · {categoryLabel} · {post.published_at ?? "sin fecha"}
         {post.url && (
           <>
             {" · "}
@@ -51,6 +55,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
           <ChartBlock title="Engagement" snapshots={snapshots} field="engagement" percent />
           <ChartBlock title="Open rate" snapshots={snapshots} field="open_rate" percent />
           <ChartBlock title="Click-to-open rate" snapshots={snapshots} field="click_to_open_rate" percent />
+          <ChartBlock title="Ingresos estimados" snapshots={snapshots} field="estimated_value" money />
         </div>
       )}
     </main>
@@ -62,11 +67,13 @@ function ChartBlock({
   snapshots,
   field,
   percent,
+  money,
 }: {
   title: string;
   snapshots: MetricSnapshot[];
   field: keyof MetricSnapshot;
   percent?: boolean;
+  money?: boolean;
 }) {
   const points: ChartPoint[] = snapshots.map((s) => ({
     date: s.snapshot_date,
@@ -77,7 +84,7 @@ function ChartBlock({
   return (
     <section>
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-muted">{title}</h2>
-      {hasData ? <LineChart points={points} percent={percent} /> : <p className="text-sm text-ink-muted">Sin datos.</p>}
+      {hasData ? <LineChart points={points} percent={percent} money={money} /> : <p className="text-sm text-ink-muted">Sin datos.</p>}
     </section>
   );
 }

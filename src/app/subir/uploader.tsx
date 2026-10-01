@@ -7,7 +7,8 @@ import {
   REQUIRED_FIELDS,
   type FieldKey,
 } from "@/lib/columns";
-import { cellToString, parseDateValue, parseIntValue, parseRateValue } from "@/lib/format";
+import { cellToString, parseDateValue, parseIntValue, parseMoneyValue, parseRateValue } from "@/lib/format";
+import { formatMoney } from "@/lib/display";
 import { commitImport, parseFile, type ImportSummary, type ParsePreview } from "./actions";
 
 type Mapping = Record<FieldKey, string | null>;
@@ -232,6 +233,8 @@ function formatPreviewCell(field: FieldKey, value: unknown): string {
       const rate = parseRateValue(value);
       return rate == null ? "—" : `${(rate * 100).toFixed(1)}%`;
     }
+    case "estimated_value":
+      return formatMoney(parseMoneyValue(value));
     default:
       return cellToString(value) ?? "—";
   }

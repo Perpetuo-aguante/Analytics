@@ -6,7 +6,7 @@ import { LineChart } from "@/components/line-chart";
 import { aggregateMetrics, getFilteredMetrics, getMovingAverages } from "@/lib/queries";
 import { getCategories } from "@/lib/categories";
 import { parseFilters, describeFilters, type FilterSearchParams } from "@/lib/filters";
-import { formatNumber, formatPercent } from "@/lib/display";
+import { formatMoney, formatNumber, formatPercent } from "@/lib/display";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +47,7 @@ export default async function PromediosPage({ searchParams }: { searchParams: Pr
             { label: "Engagement promedio", value: formatPercent(aggregate.avgEngagement) },
             { label: "Nuevos subs (prom.)", value: formatNumber(aggregate.avgNewSubscribers) },
             { label: "Views (prom.)", value: formatNumber(aggregate.avgViews) },
+            { label: "Ingresos (prom.)", value: formatMoney(aggregate.avgEstimatedValue) },
           ]}
         />
       </div>

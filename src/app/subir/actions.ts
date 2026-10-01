@@ -11,7 +11,7 @@ import {
 } from "@/lib/session";
 import { parseUploadedFile } from "@/lib/parse";
 import { findSignupsAndSubscribesHeaders, suggestMapping, type FieldKey } from "@/lib/columns";
-import { cellToString, parseDateValue, parseIntValue, parseRateValue, slugify } from "@/lib/format";
+import { cellToString, parseDateValue, parseIntValue, parseMoneyValue, parseRateValue, slugify } from "@/lib/format";
 import { looksLikeSlug, similarity } from "@/lib/dedupe";
 import { inferPostTypeFromDate } from "@/lib/post-types";
 import { createAdminClient } from "@/lib/supabase/server";
@@ -207,6 +207,7 @@ export async function commitImport(input: {
           ? parseRateValue(row[mapping.click_to_open_rate])
           : null,
         engagement: mapping.engagement ? parseRateValue(row[mapping.engagement]) : null,
+        estimated_value: mapping.estimated_value ? parseMoneyValue(row[mapping.estimated_value]) : null,
       });
     }
 

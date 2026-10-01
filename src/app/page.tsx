@@ -6,7 +6,7 @@ import { PostsTable, parseSort, sortPosts, type SortColumn } from "@/components/
 import { aggregateMetrics, getFilteredMetrics } from "@/lib/queries";
 import { getCategories } from "@/lib/categories";
 import { parseFilters, describeFilters, type FilterSearchParams } from "@/lib/filters";
-import { formatNumber, formatPercent } from "@/lib/display";
+import { formatMoney, formatNumber, formatPercent } from "@/lib/display";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +52,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             { label: "Views totales", value: formatNumber(totals.totalViews) },
             { label: "Nuevos suscriptores", value: formatNumber(totals.totalNewSubscribers) },
             { label: "Open rate promedio", value: formatPercent(totals.avgOpenRate) },
+            { label: "Ingresos estimados", value: formatMoney(totals.totalEstimatedValue) },
           ]}
         />
       </div>

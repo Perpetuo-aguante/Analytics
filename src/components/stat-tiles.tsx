@@ -9,7 +9,7 @@ export type StatTile = { label: string; value: string; hint?: string; variant?: 
 
 export function StatTiles({ tiles }: { tiles: StatTile[] }) {
   return (
-    <section className="mb-10 grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <section className={`mb-10 grid grid-cols-2 gap-3 ${tiles.length === 5 ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
       {tiles.map((tile) => (
         <div key={tile.label} className="panel p-4">
           <p className="text-xs text-ink-muted">{tile.label}</p>
