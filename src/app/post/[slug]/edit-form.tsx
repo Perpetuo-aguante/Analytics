@@ -28,12 +28,18 @@ export function EditPostForm({
   const [title, setTitle] = useState(post.title);
   const [author, setAuthor] = useState(post.author ?? "");
   const [postType, setPostType] = useState(post.post_type ?? "");
+  const [extraPostTypes, setExtraPostTypes] = useState<string[]>(post.extra_post_types ?? []);
   const [publishedAt, setPublishedAt] = useState(post.published_at ?? "");
   const [views, setViews] = useState(snapshot?.views?.toString() ?? "");
   const [newSubscribers, setNewSubscribers] = useState(snapshot?.new_subscribers?.toString() ?? "");
   const [openRate, setOpenRate] = useState(fractionToPercentInput(snapshot?.open_rate ?? null));
   const [clickToOpenRate, setClickToOpenRate] = useState(fractionToPercentInput(snapshot?.click_to_open_rate ?? null));
   const [engagement, setEngagement] = useState(fractionToPercentInput(snapshot?.engagement ?? null));
+  const [estimatedValue, setEstimatedValue] = useState(snapshot?.estimated_value?.toString() ?? "");
+
+  function toggleExtraPostType(name: string) {
+    setExtraPostTypes((prev) => (prev.includes(name) ? prev.filter((t) => t !== name) : [...prev, name]));
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -47,12 +53,14 @@ export function EditPostForm({
         title,
         author,
         postType,
+        extraPostTypes,
         publishedAt,
         views,
         newSubscribers,
         openRate,
         clickToOpenRate,
         engagement,
+        estimatedValue,
       });
       if (result.error) {
         setError(result.error);
@@ -98,7 +106,7 @@ export function EditPostForm({
           />
         </label>
         <label className="block text-sm">
-          <span className="text-ink-muted">Categoría</span>
+          <span className="text-ink-muted">Categoría principal</span>
           <select
             value={postType}
             onChange={(e) => setPostType(e.target.value)}
@@ -118,6 +126,48 @@ export function EditPostForm({
             )}
           </select>
         </label>
+        <fieldset className="block text-sm sm:col-span-2">
+          <legend className="text-ink-muted">Categorías adicionales</legend>
+          <p className="mt-0.5 text-xs text-ink-muted">
+            Para un post que cuenta en más de una sección (ej. un Poema que también salió en El Creativo). Las
+            cargas semanales solo actualizan la principal: estas se mantienen.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {categories
+              .filter((c) => c.name !== postType)
+              .map((c) => {
+                const checked = extraPostTypes.includes(c.name);
+                return (
+                  <label
+                    key={c.id}
+                    className="chip cursor-pointer"
+                    data-tone="type"
+                    data-active={checked}
+                    style={{ "--chip-color": c.color } as React.CSSProperties}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleExtraPostType(c.name)}
+                      className="sr-only"
+                    />
+                    <span className="chip__dot" aria-hidden />
+                    {c.name}
+                  </label>
+                );
+              })}
+            {/* Igual que en la principal: un valor viejo que ya no matchea
+                ninguna categoría se muestra para poder quitarlo. */}
+            {extraPostTypes
+              .filter((t) => !categories.some((c) => c.name === t))
+              .map((t) => (
+                <label key={t} className="chip cursor-pointer" data-active="true">
+                  <input type="checkbox" checked onChange={() => toggleExtraPostType(t)} className="sr-only" />
+                  {t} (sin categoría registrada)
+                </label>
+              ))}
+          </div>
+        </fieldset>
         <label className="block text-sm">
           <span className="text-ink-muted">Fecha de publicación</span>
           <input
@@ -180,6 +230,16 @@ export function EditPostForm({
                 step="0.1"
                 value={engagement}
                 onChange={(e) => setEngagement(e.target.value)}
+                className="mt-1 w-full rounded-full border border-line bg-white/50 px-4 py-2 outline-none focus:border-blue"
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="text-ink-muted">Ingresos estimados (USD)</span>
+              <input
+                type="number"
+                step="0.01"
+                value={estimatedValue}
+                onChange={(e) => setEstimatedValue(e.target.value)}
                 className="mt-1 w-full rounded-full border border-line bg-white/50 px-4 py-2 outline-none focus:border-blue"
               />
             </label>

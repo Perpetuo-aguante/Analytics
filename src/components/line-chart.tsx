@@ -1,17 +1,20 @@
 "use client";
 
 import { useId } from "react";
+import { formatMoney } from "@/lib/display";
 
 export type ChartPoint = { date: string; value: number | null };
 
 export function LineChart({
   points,
   percent = false,
+  money = false,
   width = 640,
   height = 200,
 }: {
   points: ChartPoint[];
   percent?: boolean;
+  money?: boolean;
   width?: number;
   height?: number;
 }) {
@@ -49,7 +52,8 @@ export function LineChart({
         ` L ${linePoints[linePoints.length - 1].x.toFixed(1)} ${baseline.toFixed(1)} Z`
       : "";
 
-  const formatValue = (v: number) => (percent ? `${(v * 100).toFixed(1)}%` : Math.round(v).toLocaleString("es"));
+  const formatValue = (v: number) =>
+    percent ? `${(v * 100).toFixed(1)}%` : money ? formatMoney(v) : Math.round(v).toLocaleString("es");
 
   return (
     <svg viewBox={`0 0 ${width} ${height}`} className="w-full" role="img">

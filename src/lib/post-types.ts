@@ -24,6 +24,24 @@ export function matchPostType(postType: string | null | undefined, categories: C
   return categories.find((c) => normalizeHeader(c.name) === target) ?? null;
 }
 
+// Todas las categorías de un post: la principal (post_type) primero y
+// después las adicionales (extra_post_types, ver migración 0006), sin
+// repetir. Un Poema que también salió en El Creativo devuelve las dos, y
+// cuenta para el "jale" de ambas secciones. `extra` acepta null/undefined
+// para no romper si la migración todavía no se corrió.
+export function matchPostCategories(
+  postType: string | null | undefined,
+  extra: readonly string[] | null | undefined,
+  categories: Category[]
+): Category[] {
+  const result: Category[] = [];
+  for (const raw of [postType, ...(extra ?? [])]) {
+    const category = matchPostType(raw, categories);
+    if (category && !result.some((c) => c.id === category.id)) result.push(category);
+  }
+  return result;
+}
+
 export function categoryBySlug(categories: Category[], slug: string): Category | null {
   const target = slug.toLowerCase();
   return categories.find((c) => c.slug === target) ?? null;

@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { formatNumber, formatPercent } from "@/lib/display";
-import { matchPostType } from "@/lib/post-types";
+import { formatMoney, formatNumber, formatPercent } from "@/lib/display";
+import { matchPostCategories } from "@/lib/post-types";
 import type { Category } from "@/lib/categories";
 import type { CurrentMetric } from "@/lib/supabase/types";
 
@@ -14,6 +14,7 @@ export const SORTABLE_COLUMNS = {
   open_rate: { label: "Open rate", format: "percent" },
   new_subscribers: { label: "Nuevos subs", format: "number" },
   engagement: { label: "Engagement", format: "percent" },
+  estimated_value: { label: "Ingresos", format: "money" },
 } as const;
 
 export type SortColumn = keyof typeof SORTABLE_COLUMNS;
@@ -56,7 +57,7 @@ export function PostsTable({
 }) {
   return (
     <div className="panel overflow-x-auto">
-      <table className="w-full min-w-[720px] border-collapse text-sm">
+      <table className="w-full min-w-[820px] border-collapse text-sm">
         <thead>
           <tr className="border-b border-line text-left">
             <th scope="col" className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">
@@ -88,8 +89,7 @@ export function PostsTable({
         </thead>
         <tbody>
           {rows.map((post) => {
-            const canonical = matchPostType(post.post_type, categories);
-            const color = canonical ? canonical.color : "var(--line-strong)";
+            const postCategories = matchPostCategories(post.post_type, post.extra_post_types, categories);
             return (
               <tr key={post.post_id} className="border-b border-line/60 transition-colors last:border-0 hover:bg-surface/70">
                 <td className="px-4 py-3">
@@ -97,13 +97,31 @@ export function PostsTable({
                     {post.title}
                   </Link>
                   <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-muted">
-                    {/* El punto de color es el mismo que este tipo usa en los
-                        charts; el nombre va al lado porque el color por sí
-                        solo no puede cargar la identidad. */}
-                    <span className="inline-flex items-center gap-1.5">
-                      <span className="inline-block h-2 w-2 rounded-full" style={{ background: color }} aria-hidden />
-                      {post.post_type ?? "Sin tipo"}
-                    </span>
+                    {/* El punto de color es el mismo que cada categoría usa en
+                        los charts; el nombre va al lado porque el color por
+                        sí solo no puede cargar la identidad. Un post puede
+                        tener varias (principal + adicionales). */}
+                    {postCategories.length > 0 ? (
+                      postCategories.map((category) => (
+                        <span key={category.id} className="inline-flex items-center gap-1.5">
+                          <span
+                            className="inline-block h-2 w-2 rounded-full"
+                            style={{ background: category.color }}
+                            aria-hidden
+                          />
+                          {category.name}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5">
+                        <span
+                          className="inline-block h-2 w-2 rounded-full"
+                          style={{ background: "var(--line-strong)" }}
+                          aria-hidden
+                        />
+                        {post.post_type ?? "Sin tipo"}
+                      </span>
+                    )}
                     {post.author && <span>· {post.author}</span>}
                   </p>
                 </td>
@@ -114,6 +132,7 @@ export function PostsTable({
                 <td className="tnum px-4 py-3 text-right font-medium">{formatPercent(post.open_rate)}</td>
                 <td className="tnum px-4 py-3 text-right font-medium">{formatNumber(post.new_subscribers)}</td>
                 <td className="tnum px-4 py-3 text-right font-medium">{formatPercent(post.engagement)}</td>
+                <td className="tnum px-4 py-3 text-right font-medium">{formatMoney(post.estimated_value)}</td>
               </tr>
             );
           })}

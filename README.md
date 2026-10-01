@@ -17,11 +17,25 @@ la vez, y la nav lo arrastra al cambiar de sección. El rango se guarda **relati
 (`?rango=30`) y se resuelve a fechas absolutas en el servidor en cada request, para que
 un enlace compartido no se congele en las fechas del día que se copió.
 
+## Categorías múltiples e ingresos
+
+Un post puede tener **más de una categoría**: `posts.post_type` es la principal (la que
+trae el CSV o se infiere por día de la semana, y la que da el color en los charts) y
+`posts.extra_post_types` guarda las adicionales, que se asignan desde "Corregir datos" en
+`/post/[slug]`. Un Poema que también salió en El Creativo cuenta en las dos secciones:
+aparece al filtrar por cualquiera, entra en el ranking de ambas y suma en las series por
+sección. Las cargas semanales solo reescriben la principal, nunca las adicionales.
+
+La columna **"Estimated value"** del export de Substack se guarda como
+`metric_snapshots.estimated_value` (USD) y se muestra como "Ingresos" en la tabla, los
+rankings, los stat tiles y la ficha de cada post. Requiere correr
+`supabase/migrations/0006_multi_tags_and_estimated_value.sql`.
+
 ## Funcionalidad
 
 - **`/subir`** (protegida por contraseña): carga semanal de un Excel/CSV con métricas por post (mapea columnas en español/inglés automáticamente) y carga del export de suscriptores de Substack (columnas fijas, sin mapeo manual).
-- **`/`**: tabla ordenable por cualquier métrica (views, open rate, nuevos suscriptores, engagement) más búsqueda por título, sobre el snapshot más reciente de cada post.
-- **`/rankings`**: rankings en barras, globales y partidos por sección, por la métrica que elijas (views, open rate, nuevos suscriptores o engagement).
+- **`/`**: tabla ordenable por cualquier métrica (views, open rate, nuevos suscriptores, engagement, ingresos estimados) más búsqueda por título, sobre el snapshot más reciente de cada post.
+- **`/rankings`**: rankings en barras, globales y partidos por sección, por la métrica que elijas (views, open rate, nuevos suscriptores, engagement o ingresos estimados).
 - **`/post/[slug]`**: evolución de métricas de un post a través de los snapshots semanales.
 - **`/promedios`**: promedios agregados y media móvil histórica de las métricas de posts.
 - **`/dashboards`**: scatter (open rate vs. views, views vs. nuevos suscriptores) y series temporales por sección.

@@ -9,11 +9,12 @@ export const RANKING_METRICS = [
   { key: "open_rate", label: "Open rate", column: "open_rate", format: "percent" },
   { key: "new_subscribers", label: "Nuevos subs", column: "new_subscribers", format: "number" },
   { key: "engagement", label: "Engagement", column: "engagement", format: "percent" },
+  { key: "estimated_value", label: "Ingresos", column: "estimated_value", format: "money" },
 ] as const satisfies readonly {
   key: string;
   label: string;
   column: keyof CurrentMetric;
-  format: "number" | "percent";
+  format: "number" | "percent" | "money";
 }[];
 
 export type RankingMetric = (typeof RANKING_METRICS)[number];
@@ -28,7 +29,9 @@ export function parseMetric(value: string | undefined): RankingMetric {
 // Ordena de mayor a menor por la métrica dada, descartando los posts que no
 // la tienen. Un null no es un cero: un post sin open_rate registrado no debe
 // aparecer al fondo del ranking como si hubiera tenido 0% de aperturas.
-export function rankBy<T extends Pick<CurrentMetric, "views" | "open_rate" | "new_subscribers" | "engagement">>(
+export function rankBy<
+  T extends Pick<CurrentMetric, "views" | "open_rate" | "new_subscribers" | "engagement" | "estimated_value">
+>(
   rows: T[],
   metric: RankingMetric
 ): T[] {

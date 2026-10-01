@@ -12,7 +12,8 @@ export type FieldKey =
   | "new_subscribers"
   | "open_rate"
   | "click_to_open_rate"
-  | "engagement";
+  | "engagement"
+  | "estimated_value";
 
 export const FIELD_ORDER: FieldKey[] = [
   "title",
@@ -24,6 +25,7 @@ export const FIELD_ORDER: FieldKey[] = [
   "open_rate",
   "click_to_open_rate",
   "engagement",
+  "estimated_value",
 ];
 
 export const FIELD_LABELS: Record<FieldKey, string> = {
@@ -36,6 +38,7 @@ export const FIELD_LABELS: Record<FieldKey, string> = {
   open_rate: "Open rate",
   click_to_open_rate: "Click-to-open rate",
   engagement: "Engagement",
+  estimated_value: "Ingresos estimados (USD)",
 };
 
 // Campos sin los que no se puede identificar un post de forma estable.
@@ -77,6 +80,15 @@ const ALIASES: Record<FieldKey, string[]> = {
     "click to open",
   ],
   engagement: ["engagement", "interaccion", "engagement rate", "interaccion rate", "tasa de interaccion"],
+  // "Estimated value" del export de posts de Substack: lo que Substack estima
+  // que generó cada post, en dólares.
+  estimated_value: [
+    "estimated value",
+    "est value",
+    "estimated revenue",
+    "valor estimado",
+    "ingresos estimados",
+  ],
 };
 
 // Normaliza un encabezado para comparar sin importar acentos, mayúsculas,
