@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/session";
+import { countryFromEmail } from "@/lib/geo";
 import { parseUploadedFile } from "@/lib/parse";
 import { resolveSubscriberColumns, parseSections } from "@/lib/subscriber-columns";
 import {
@@ -160,7 +161,9 @@ export async function commitSubscriberImport(
         subscription_source_paid: cols.subscription_source_paid
           ? cellToString(get("subscription_source_paid"))
           : undefined,
-        country: cols.country ? cellToString(get("country")) : undefined,
+        // El dominio institucional manda sobre lo que traiga el export (ver
+        // countryFromEmail en lib/geo.ts); si no aplica, queda el país del CSV.
+        country: countryFromEmail(email) ?? (cols.country ? cellToString(get("country")) : undefined),
         state_province: cols.state_province ? cellToString(get("state_province")) : undefined,
         sections: cols.sections ? parseSections(get("sections")) : undefined,
       });
