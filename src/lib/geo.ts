@@ -427,3 +427,23 @@ export function countryRegion(raw: string | null | undefined): RegionLabel {
 export function sameCountry(a: string | null | undefined, b: string | null | undefined): boolean {
   return countryKey(a) === countryKey(b);
 }
+
+// Suscriptores que llegan en bloque desde una institución (p. ej. una
+// universidad que inscribe a sus alumnos) suelen venir sin país en el
+// export. Para esos dominios el país se toma del correo. Se compara por
+// sufijo, así que "alumnos.unimeta.edu.co" también cuenta. El valor es el
+// nombre que se guarda en `subscribers.country` y que `lookupCountry`
+// resuelve como cualquier otro.
+const EMAIL_DOMAIN_COUNTRIES: Record<string, string> = {
+  "unimeta.edu.co": "Colombia", // Universidad del Meta, Villavicencio
+};
+
+/** País implícito en el dominio del correo, o null si el dominio no está en la tabla. */
+export function countryFromEmail(email: string | null | undefined): string | null {
+  const domain = email?.trim().toLowerCase().split("@")[1];
+  if (!domain) return null;
+  for (const [suffix, country] of Object.entries(EMAIL_DOMAIN_COUNTRIES)) {
+    if (domain === suffix || domain.endsWith(`.${suffix}`)) return country;
+  }
+  return null;
+}
