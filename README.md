@@ -1,6 +1,6 @@
 # Perpetuo Analytics
 
-Web app de analítica para la publicación de Substack **Perpetuo**. Next.js (App Router) + Supabase (Postgres) + Vercel.
+Web app de analítica para la publicación de Substack **Perpetuo**. Next.js (App Router) + Neon (Postgres y Neon Auth) + Vercel.
 
 ## Filtros
 
@@ -28,12 +28,11 @@ sección. Las cargas semanales solo reescriben la principal, nunca las adicional
 
 La columna **"Estimated value"** del export de Substack se guarda como
 `metric_snapshots.estimated_value` (USD) y se muestra como "Ingresos" en la tabla, los
-rankings, los stat tiles y la ficha de cada post. Requiere correr
-`supabase/migrations/0006_multi_tags_and_estimated_value.sql`.
+rankings, los stat tiles y la ficha de cada post.
 
 ## Funcionalidad
 
-- **`/subir`** (protegida por contraseña): carga semanal de un Excel/CSV con métricas por post (mapea columnas en español/inglés automáticamente) y carga del export de suscriptores de Substack (columnas fijas, sin mapeo manual).
+- **`/subir`** (requiere cuenta de admin, ver "Acceso"): carga semanal de un Excel/CSV con métricas por post (mapea columnas en español/inglés automáticamente) y carga del export de suscriptores de Substack (columnas fijas, sin mapeo manual).
 - **`/`**: tabla ordenable por cualquier métrica (views, open rate, nuevos suscriptores, engagement, ingresos estimados) más búsqueda por título, sobre el snapshot más reciente de cada post.
 - **`/rankings`**: rankings en barras, globales y partidos por sección, por la métrica que elijas (views, open rate, nuevos suscriptores, engagement o ingresos estimados).
 - **`/post/[slug]`**: evolución de métricas de un post a través de los snapshots semanales.
@@ -85,22 +84,39 @@ valor nunca depende de distinguir el color.
 
 ## Modelo de datos
 
-Ver [`supabase/schema.sql`](./supabase/schema.sql) y las migraciones en [`supabase/migrations/`](./supabase/migrations/) (pega cada archivo nuevo en Supabase → SQL Editor → Run, en orden). Resumen:
+Todo el esquema está en [`db/schema.sql`](./db/schema.sql) (antes eran `supabase/schema.sql` + 7 migraciones; quedó consolidado en un solo archivo idempotente). Para aplicarlo o actualizarlo:
+
+```bash
+npm run db:migrate
+```
+
+Corre contra `DATABASE_URL_UNPOOLED` (la conexión directa, la recomendada por Neon para cambios de esquema). Resumen:
 
 - `posts`: identidad estable de cada post (slug derivado del título; la URL es opcional).
 - `metric_snapshots`: una fila nueva por post en cada carga semanal — nunca se sobrescribe el histórico.
 - `current_metrics` (vista): el snapshot más reciente de cada post.
+- `post_categories`: las secciones, editables desde `/subir`.
 - `subscribers`: identidad de cada suscriptor (email) + atributos descriptivos (tipo, plan, fechas de alta/baja, país, estado/provincia, preferencias de sección) que se actualizan en cada carga. `start_date` y `cancel_date` son las que sostienen todo el histórico de `/suscriptores/geografia`.
 - `subscriber_snapshots`: las métricas cuantitativas de actividad (aperturas, clics, views, comentarios, shares, revenue) por carga — mismo patrón de histórico que `metric_snapshots`.
-- `current_subscriber_metrics` (vista): el snapshot más reciente de cada suscriptor, con open rate y click rate ya calculados (`0003_fix_open_rate_6mo.sql` corrige el open rate para que no pase de 100%).
+- `current_subscriber_metrics` (vista): el snapshot más reciente de cada suscriptor, con open rate (sobre correos únicos vistos, con tope de 100%) y click rate ya calculados.
 
-`0004_post_type_rename_and_backfill.sql` renombra "321 Editorial" a "El Creativo" en los posts ya cargados y completa el `post_type` de los que quedaron sin tipo, usando el calendario editorial fijo (lunes = Estelar, miércoles = Anteojos Editorial, viernes = El Creativo — ver `lib/post-types.ts`). Las cargas nuevas hacen lo mismo automáticamente cuando el CSV no trae `post_type`.
+Cuando un CSV de posts no trae `post_type`, la carga lo infiere del calendario editorial fijo (lunes = Estelar, miércoles = Anteojos Editorial, viernes = El Creativo — ver `lib/post-types.ts`).
+
+La app habla con Postgres solo desde el servidor (`lib/db.ts`, driver `@neondatabase/serverless` por HTTPS). La base no tiene una API pública: nadie fuera del servidor puede leerla, ni siquiera la lista de suscriptores.
+
+## Acceso
+
+`/subir` y la corrección manual de posts piden una cuenta de **Neon Auth** (correo y contraseña). Cualquiera puede crearse una cuenta desde `/subir`, pero solo los correos listados en `ADMIN_EMAILS` pueden cargar o modificar datos; el resto ve un aviso de "sin permiso". Si `ADMIN_EMAILS` no está configurada, nadie es admin. Las cuentas viven en el esquema `neon_auth` de la misma base.
+
+Las páginas de lectura (`/`, `/rankings`, `/suscriptores`, etc.) siguen siendo públicas.
 
 ## Desarrollo local
 
 ```bash
 npm install
-cp .env.example .env.local   # completa las variables (ver más abajo)
+neon env pull                # escribe DATABASE_URL, NEON_AUTH_BASE_URL, etc. en .env.local
+# agrega a .env.local: NEON_AUTH_COOKIE_SECRET, ADMIN_EMAILS y ANALYTICS_API_KEY
+npm run db:migrate           # solo la primera vez, o si cambió db/schema.sql
 npm run dev
 ```
 
@@ -108,11 +124,11 @@ npm run dev
 
 | Variable | De dónde sale |
 | --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Project Settings → API → Project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Project Settings → API → anon public |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API → service_role secret (nunca la expongas) |
-| `UPLOAD_PASSWORD` | La contraseña que tú elijas para entrar a `/subir` |
-| `SESSION_SECRET` | Cadena aleatoria larga, ej. `openssl rand -hex 32` |
+| `DATABASE_URL` | Neon (conexión con pooler). La escribe `neon env pull` / `neon deploy` |
+| `DATABASE_URL_UNPOOLED` | Neon (conexión directa, para `npm run db:migrate`). La escribe `neon env pull` |
+| `NEON_AUTH_BASE_URL` | URL de Neon Auth de la rama. La escribe `neon env pull` |
+| `NEON_AUTH_COOKIE_SECRET` | Cadena aleatoria de 32+ caracteres, ej. `openssl rand -base64 32` |
+| `ADMIN_EMAILS` | Correos con permiso de admin, separados por coma |
 | `ANALYTICS_API_KEY` | Cadena aleatoria larga (ej. `openssl rand -hex 32`) que protege `/api/subscribers/lookup` |
 
 ## API para integraciones (n8n)

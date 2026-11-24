@@ -1,20 +1,13 @@
 "use server";
 
-import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
-import {
-  checkPassword,
-  createSessionCookieValue,
-  requireSession,
-  SESSION_COOKIE_NAME,
-  SESSION_MAX_AGE,
-} from "@/lib/session";
+import { requireSession } from "@/lib/session";
 import { parseUploadedFile } from "@/lib/parse";
 import { findSignupsAndSubscribesHeaders, suggestMapping, type FieldKey } from "@/lib/columns";
 import { cellToString, parseDateValue, parseIntValue, parseMoneyValue, parseRateValue, slugify } from "@/lib/format";
 import { looksLikeSlug, similarity } from "@/lib/dedupe";
 import { inferPostTypeFromDate } from "@/lib/post-types";
-import { createAdminClient } from "@/lib/supabase/server";
+import { query, transaction, upsertRows } from "@/lib/db";
 
 // Umbral de similitud (0-1) para considerar dos posts "el mismo post" al
 // resolver el slug de identidad (ver resolveExistingSlug) y al buscar
@@ -29,27 +22,8 @@ const DUPLICATE_SIMILARITY_THRESHOLD = 0.82;
 // sí (trunca palabras, no lleva tildes/mayúsculas).
 const SLUG_TITLE_SIMILARITY_THRESHOLD = 0.6;
 
-export type LoginState = { error: string | null };
-
-export async function login(_prev: LoginState, formData: FormData): Promise<LoginState> {
-  const password = String(formData.get("password") ?? "");
-  if (!checkPassword(password)) {
-    return { error: "Contraseña incorrecta." };
-  }
-  const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE_NAME, createSessionCookieValue(), {
-    httpOnly: true,
-    secure: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: SESSION_MAX_AGE,
-  });
-  return { error: null };
-}
-
-export async function logout() {
-  const cookieStore = await cookies();
-  cookieStore.delete(SESSION_COOKIE_NAME);
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 export type ParsePreview = {
@@ -136,21 +110,14 @@ export async function commitImport(input: {
       published_at?: string | null;
     };
 
-    const supabase = createAdminClient();
-
     // Slugs de los posts que ya existen en la base, para poder reconocer un
     // post que ya conocíamos aunque este archivo lo traiga con el título en
     // otro formato (ej. slug crudo de Substack en cargas viejas vs. título en
     // lenguaje natural en las nuevas — ver dedupe.ts). Sin esto, un cambio de
     // formato entre cargas genera una fila nueva por post en vez de
     // actualizar la existente.
-    const { data: existingPostsForMatch, error: existingMatchError } = await supabase
-      .from("posts")
-      .select("slug");
-    if (existingMatchError) {
-      return { data: null, error: `No se pudo leer posts existentes: ${existingMatchError.message}` };
-    }
-    const knownSlugs = (existingPostsForMatch ?? []).map((p) => p.slug as string);
+    const existingPostsForMatch = await query<{ slug: string }>("select slug from posts");
+    const knownSlugs = existingPostsForMatch.map((p) => p.slug);
     const knownSlugSet = new Set(knownSlugs);
     // Slugs ya resueltos dentro de esta misma carga, para tampoco duplicar
     // internamente si el mismo post aparece más de una vez en el archivo.
@@ -222,24 +189,22 @@ export async function commitImport(input: {
     // resumen de creados/actualizados.
     const existingSlugsInBatch = postsPayload.filter((p) => knownSlugSet.has(p.slug)).length;
 
-    const { data: upsertedPosts, error: upsertError } = await supabase
-      .from("posts")
-      .upsert(postsPayload, { onConflict: "slug" })
-      .select("id, slug");
-    if (upsertError || !upsertedPosts) {
-      return { data: null, error: `No se pudo guardar los posts: ${upsertError?.message}` };
+    let upsertedPosts: { id: string; slug: string }[];
+    try {
+      upsertedPosts = await upsertRows<{ id: string; slug: string }>("posts", postsPayload, ["slug"], ["id", "slug"]);
+    } catch (err) {
+      return { data: null, error: `No se pudo guardar los posts: ${errorMessage(err)}` };
     }
 
-    const idBySlug = new Map(upsertedPosts.map((p) => [p.slug as string, p.id as string]));
+    const idBySlug = new Map(upsertedPosts.map((p) => [p.slug, p.id]));
     const snapshotsPayload = Array.from(snapshotsBySlug.entries())
       .map(([slug, snap]) => ({ post_id: idBySlug.get(slug), ...snap }))
       .filter((s) => s.post_id);
 
-    const { error: snapshotError } = await supabase
-      .from("metric_snapshots")
-      .upsert(snapshotsPayload, { onConflict: "post_id,snapshot_date" });
-    if (snapshotError) {
-      return { data: null, error: `No se pudo guardar las métricas: ${snapshotError.message}` };
+    try {
+      await upsertRows("metric_snapshots", snapshotsPayload, ["post_id", "snapshot_date"]);
+    } catch (err) {
+      return { data: null, error: `No se pudo guardar las métricas: ${errorMessage(err)}` };
     }
 
     revalidatePath("/");
@@ -269,22 +234,11 @@ export type UploadBatch = {
 export async function listUploads(): Promise<{ data: UploadBatch[] | null; error: string | null }> {
   try {
     await requireSession();
-    const supabase = createAdminClient();
-    const { data, error } = await supabase
-      .from("metric_snapshots")
-      .select("snapshot_date")
-      .order("snapshot_date", { ascending: false });
-    if (error) return { data: null, error: error.message };
-
-    const counts = new Map<string, number>();
-    for (const row of data ?? []) {
-      const date = row.snapshot_date as string;
-      counts.set(date, (counts.get(date) ?? 0) + 1);
-    }
-    const batches = Array.from(counts.entries()).map(([snapshotDate, postCount]) => ({
-      snapshotDate,
-      postCount,
-    }));
+    const rows = await query<{ snapshot_date: string; post_count: number }>(
+      `select snapshot_date, count(*)::int as post_count
+       from metric_snapshots group by snapshot_date order by snapshot_date desc`
+    );
+    const batches = rows.map((r) => ({ snapshotDate: r.snapshot_date, postCount: r.post_count }));
     return { data: batches, error: null };
   } catch (err) {
     return { data: null, error: err instanceof Error ? err.message : "No se pudo leer las cargas." };
@@ -301,38 +255,32 @@ export async function deleteUpload(
 ): Promise<{ data: DeleteUploadSummary | null; error: string | null }> {
   try {
     await requireSession();
-    const supabase = createAdminClient();
-
-    const { data: deleted, error: deleteError } = await supabase
-      .from("metric_snapshots")
-      .delete()
-      .eq("snapshot_date", snapshotDate)
-      .select("post_id");
-    if (deleteError) return { data: null, error: deleteError.message };
-
-    const affectedPostIds = Array.from(new Set((deleted ?? []).map((r) => r.post_id as string)));
-    let postsEliminados = 0;
-    if (affectedPostIds.length > 0) {
-      const { data: remaining, error: remainingError } = await supabase
-        .from("metric_snapshots")
-        .select("post_id")
-        .in("post_id", affectedPostIds);
-      if (remainingError) return { data: null, error: remainingError.message };
-
-      const stillHaveSnapshots = new Set((remaining ?? []).map((r) => r.post_id as string));
-      const orphanIds = affectedPostIds.filter((id) => !stillHaveSnapshots.has(id));
-      if (orphanIds.length > 0) {
-        const { error: orphanError } = await supabase.from("posts").delete().in("id", orphanIds);
-        if (orphanError) return { data: null, error: orphanError.message };
-        postsEliminados = orphanIds.length;
-      }
-    }
+    // Se borran las métricas de esa carga y, en la misma transacción, los
+    // posts que quedaron sin ninguna métrica (los que solo existían por esa
+    // carga).
+    // (Dentro de una misma sentencia, las CTE ven la tabla como estaba antes
+    // del delete; por eso se excluye la fecha borrada al buscar otras.)
+    const [counts] = await query<{ snapshots: number; posts: number }>(
+      `with deleted as (
+         delete from metric_snapshots where snapshot_date = $1 returning post_id
+       ), orphans as (
+         delete from posts p
+         where p.id in (select post_id from deleted)
+           and not exists (
+             select 1 from metric_snapshots ms where ms.post_id = p.id and ms.snapshot_date <> $1
+           )
+         returning p.id
+       )
+       select (select count(*) from deleted)::int as snapshots, (select count(*) from orphans)::int as posts`,
+      [snapshotDate]
+    );
+    const postsEliminados = counts.posts;
 
     revalidatePath("/");
     revalidatePath("/rankings");
 
     return {
-      data: { snapshotsEliminados: deleted?.length ?? 0, postsEliminados },
+      data: { snapshotsEliminados: counts.snapshots, postsEliminados },
       error: null,
     };
   } catch (err) {
@@ -353,14 +301,9 @@ export type DuplicateCandidate = {
 export async function findDuplicateCandidates(): Promise<{ data: DuplicateCandidate[] | null; error: string | null }> {
   try {
     await requireSession();
-    const supabase = createAdminClient();
-    const { data, error } = await supabase
-      .from("posts")
-      .select("id, slug, title, published_at")
-      .order("title");
-    if (error) return { data: null, error: error.message };
-
-    const posts = data ?? [];
+    const posts = await query<{ id: string; slug: string; title: string; published_at: string | null }>(
+      "select id, slug, title, published_at from posts order by title"
+    );
     const candidates: DuplicateCandidate[] = [];
     for (let i = 0; i < posts.length; i++) {
       for (let j = i + 1; j < posts.length; j++) {
@@ -416,47 +359,22 @@ export async function mergeDuplicatePosts(
   try {
     await requireSession();
     if (keepId === discardId) return { data: null, error: "Los dos posts son el mismo." };
-    const supabase = createAdminClient();
-
-    const { data: discardSnaps, error: discardError } = await supabase
-      .from("metric_snapshots")
-      .select("id, snapshot_date")
-      .eq("post_id", discardId);
-    if (discardError) return { data: null, error: discardError.message };
-
-    const { data: keepSnaps, error: keepError } = await supabase
-      .from("metric_snapshots")
-      .select("snapshot_date")
-      .eq("post_id", keepId);
-    if (keepError) return { data: null, error: keepError.message };
-
-    const keepDates = new Set((keepSnaps ?? []).map((s) => s.snapshot_date as string));
-    const toMove = (discardSnaps ?? []).filter((s) => !keepDates.has(s.snapshot_date as string));
-    const toDrop = (discardSnaps ?? []).filter((s) => keepDates.has(s.snapshot_date as string));
-
-    if (toMove.length > 0) {
-      const { error: moveError } = await supabase
-        .from("metric_snapshots")
-        .update({ post_id: keepId })
-        .in(
-          "id",
-          toMove.map((s) => s.id)
-        );
-      if (moveError) return { data: null, error: moveError.message };
-    }
-    if (toDrop.length > 0) {
-      const { error: dropError } = await supabase
-        .from("metric_snapshots")
-        .delete()
-        .in(
-          "id",
-          toDrop.map((s) => s.id)
-        );
-      if (dropError) return { data: null, error: dropError.message };
-    }
-
-    const { error: deletePostError } = await supabase.from("posts").delete().eq("id", discardId);
-    if (deletePostError) return { data: null, error: deletePostError.message };
+    // Todo en una transacción: primero se descartan las semanas que keepId ya
+    // tiene, después se mueve el resto y al final se borra el duplicado.
+    const [dropped, moved] = await transaction([
+      {
+        text: `delete from metric_snapshots
+               where post_id = $1
+                 and snapshot_date in (select snapshot_date from metric_snapshots where post_id = $2)
+               returning id`,
+        params: [discardId, keepId],
+      },
+      {
+        text: "update metric_snapshots set post_id = $2 where post_id = $1 returning id",
+        params: [discardId, keepId],
+      },
+      { text: "delete from posts where id = $1", params: [discardId] },
+    ]);
 
     revalidatePath("/");
     revalidatePath("/rankings");
@@ -464,7 +382,7 @@ export async function mergeDuplicatePosts(
     revalidatePath("/promedios");
 
     return {
-      data: { snapshotsMovidos: toMove.length, snapshotsDescartados: toDrop.length },
+      data: { snapshotsMovidos: moved.length, snapshotsDescartados: dropped.length },
       error: null,
     };
   } catch (err) {

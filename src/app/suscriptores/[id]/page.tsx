@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getSubscriberById } from "@/lib/subscriber-queries";
 import { formatMoney, formatNumber, formatPercent, formatTenure } from "@/lib/display";
 import { LineChart, type ChartPoint } from "@/components/line-chart";
-import type { SubscriberSnapshot } from "@/lib/supabase/types";
+import type { SubscriberSnapshot } from "@/lib/db-types";
 
 export const dynamic = "force-dynamic";
 

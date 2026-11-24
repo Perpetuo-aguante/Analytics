@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/session";
-import { createAdminClient } from "@/lib/supabase/server";
+import { query } from "@/lib/db";
 import { normalizeHeader } from "@/lib/columns";
 import { slugify } from "@/lib/format";
 import { autoStyleForIndex, getCategories, type Category } from "@/lib/categories";
@@ -29,25 +29,19 @@ export async function createCategory(name: string): Promise<CategoryActionResult
     const trimmed = name.trim();
     if (!trimmed) return { error: "El nombre no puede quedar vacío." };
 
-    const supabase = createAdminClient();
-    const { data: existing, error: existingError } = await supabase.from("post_categories").select("name");
-    if (existingError) return { error: existingError.message };
+    const existing = await query<{ name: string }>("select name from post_categories");
 
     const normalized = normalizeHeader(trimmed);
-    if ((existing ?? []).some((c) => normalizeHeader(c.name as string) === normalized)) {
+    if (existing.some((c) => normalizeHeader(c.name) === normalized)) {
       return { error: "Ya existe una categoría con ese nombre." };
     }
 
-    const count = (existing ?? []).length;
+    const count = existing.length;
     const style = autoStyleForIndex(count);
-    const { error } = await supabase.from("post_categories").insert({
-      name: trimmed,
-      slug: slugify(trimmed),
-      color: style.color,
-      shape: style.shape,
-      sort_order: count + 1,
-    });
-    if (error) return { error: error.message };
+    await query(
+      "insert into post_categories (name, slug, color, shape, sort_order) values ($1, $2, $3, $4, $5)",
+      [trimmed, slugify(trimmed), style.color, style.shape, count + 1]
+    );
 
     revalidatePath("/", "layout");
     return { error: null };
@@ -65,19 +59,16 @@ export async function createCategory(name: string): Promise<CategoryActionResult
 export async function deleteCategory(id: string): Promise<CategoryActionResult> {
   try {
     await requireSession();
-    const supabase = createAdminClient();
-
     const categories = await getCategories();
     const category = categories.find((c) => c.id === id);
     if (!category) return { error: "Esa categoría ya no existe." };
 
-    const { data: posts, error: postsError } = await supabase.from("posts").select("post_type, extra_post_types");
-    if (postsError) return { error: postsError.message };
+    const posts = await query<{ post_type: string | null; extra_post_types: string[] }>(
+      "select post_type, extra_post_types from posts"
+    );
 
-    const inUseCount = (posts ?? []).filter((p) =>
-      matchPostCategories(p.post_type as string | null, p.extra_post_types as string[] | null, categories).some(
-        (c) => c.id === id
-      )
+    const inUseCount = posts.filter((p) =>
+      matchPostCategories(p.post_type, p.extra_post_types, categories).some((c) => c.id === id)
     ).length;
     if (inUseCount > 0) {
       return {
@@ -85,8 +76,7 @@ export async function deleteCategory(id: string): Promise<CategoryActionResult> 
       };
     }
 
-    const { error } = await supabase.from("post_categories").delete().eq("id", id);
-    if (error) return { error: error.message };
+    await query("delete from post_categories where id = $1", [id]);
 
     revalidatePath("/", "layout");
     return { error: null };

@@ -1,25 +1,23 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { cookies } from "next/headers";
 import { getPostBySlug, getSnapshotsForPost } from "@/lib/queries";
 import { getCategories } from "@/lib/categories";
 import { matchPostCategories } from "@/lib/post-types";
 import { LineChart, type ChartPoint } from "@/components/line-chart";
 import { EditPostForm } from "./edit-form";
-import { isValidSessionCookieValue, SESSION_COOKIE_NAME } from "@/lib/session";
-import type { MetricSnapshot } from "@/lib/supabase/types";
+import { isAdmin as getIsAdmin } from "@/lib/session";
+import type { MetricSnapshot } from "@/lib/db-types";
 
 export default async function PostPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const post = await getPostBySlug(slug);
   if (!post) notFound();
 
-  const [snapshots, cookieStore, categories] = await Promise.all([
+  const [snapshots, isAdmin, categories] = await Promise.all([
     getSnapshotsForPost(post.id),
-    cookies(),
+    getIsAdmin(),
     getCategories(),
   ]);
-  const isAdmin = isValidSessionCookieValue(cookieStore.get(SESSION_COOKIE_NAME)?.value);
   const latestSnapshot = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
   const postCategories = matchPostCategories(post.post_type, post.extra_post_types, categories);
   const categoryLabel =

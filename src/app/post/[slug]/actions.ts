@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/session";
-import { createAdminClient } from "@/lib/supabase/server";
+import { query } from "@/lib/db";
 import { parseIntValue, parseMoneyValue } from "@/lib/format";
 
 export type UpdatePostInput = {
@@ -39,7 +39,6 @@ function percentToFraction(value: string): number | null {
 export async function updatePost(input: UpdatePostInput): Promise<UpdatePostResult> {
   try {
     await requireSession();
-    const supabase = createAdminClient();
 
     const title = input.title.trim();
     if (!title) return { error: "El título no puede quedar vacío." };
@@ -51,31 +50,37 @@ export async function updatePost(input: UpdatePostInput): Promise<UpdatePostResu
       new Set(input.extraPostTypes.map((t) => t.trim()).filter((t) => t && t !== postType))
     );
 
-    const { error: postError } = await supabase
-      .from("posts")
-      .update({
-        title,
-        author: input.author.trim() || null,
-        post_type: postType,
-        extra_post_types: extraPostTypes,
-        published_at: input.publishedAt || null,
-      })
-      .eq("id", input.postId);
-    if (postError) return { error: `No se pudo guardar el post: ${postError.message}` };
+    try {
+      await query(
+        `update posts
+         set title = $2, author = $3, post_type = $4, extra_post_types = $5, published_at = $6, updated_at = now()
+         where id = $1`,
+        [input.postId, title, input.author.trim() || null, postType, extraPostTypes, input.publishedAt || null]
+      );
+    } catch (err) {
+      return { error: `No se pudo guardar el post: ${err instanceof Error ? err.message : String(err)}` };
+    }
 
     if (input.snapshotId) {
-      const { error: snapshotError } = await supabase
-        .from("metric_snapshots")
-        .update({
-          views: parseIntValue(input.views),
-          new_subscribers: parseIntValue(input.newSubscribers),
-          open_rate: percentToFraction(input.openRate),
-          click_to_open_rate: percentToFraction(input.clickToOpenRate),
-          engagement: percentToFraction(input.engagement),
-          estimated_value: parseMoneyValue(input.estimatedValue),
-        })
-        .eq("id", input.snapshotId);
-      if (snapshotError) return { error: `No se pudo guardar las métricas: ${snapshotError.message}` };
+      try {
+        await query(
+          `update metric_snapshots
+           set views = $2, new_subscribers = $3, open_rate = $4, click_to_open_rate = $5,
+               engagement = $6, estimated_value = $7
+           where id = $1`,
+          [
+            input.snapshotId,
+            parseIntValue(input.views),
+            parseIntValue(input.newSubscribers),
+            percentToFraction(input.openRate),
+            percentToFraction(input.clickToOpenRate),
+            percentToFraction(input.engagement),
+            parseMoneyValue(input.estimatedValue),
+          ]
+        );
+      } catch (err) {
+        return { error: `No se pudo guardar las métricas: ${err instanceof Error ? err.message : String(err)}` };
+      }
     }
 
     revalidatePath("/");

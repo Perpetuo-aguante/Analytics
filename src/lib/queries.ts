@@ -1,5 +1,5 @@
-import { createAnonClient } from "./supabase/server";
-import type { CurrentMetric, MetricSnapshot, Post } from "./supabase/types";
+import { query, queryOne } from "./db";
+import type { CurrentMetric, MetricSnapshot, Post } from "./db-types";
 import { NEWSLETTER_POST_TYPE_NAMES, matchPostCategories } from "./post-types";
 import type { Category } from "./categories";
 import type { Filters } from "./filters";
@@ -44,17 +44,38 @@ function applyRowFilters<T extends { post_type: string | null; extra_post_types?
 // Trae el snapshot más reciente de cada post, ya recortado. Es la fuente de
 // la tabla de posts, de los rankings y del scatter: una sola consulta por
 // página en lugar de una por sección.
+// Condición SQL del rango de fecha de publicación del filtro, para las
+// consultas que lo aplican en la base.
+function publishedAtRange(filters: Filters): { where: string; params: string[] } {
+  const conditions: string[] = [];
+  const params: string[] = [];
+  if (filters.from) {
+    params.push(filters.from);
+    conditions.push(`published_at >= $${params.length}`);
+  }
+  if (filters.to) {
+    params.push(filters.to);
+    conditions.push(`published_at <= $${params.length}`);
+  }
+  return { where: conditions.length > 0 ? `where ${conditions.join(" and ")}` : "", params };
+}
+
+type PostCategoryRow = Pick<Post, "id" | "post_type" | "extra_post_types" | "published_at">;
+
+function getPostsInRange(filters: Filters): Promise<PostCategoryRow[]> {
+  const { where, params } = publishedAtRange(filters);
+  return query<PostCategoryRow>(`select id, post_type, extra_post_types, published_at from posts ${where}`, params);
+}
+
 export async function getFilteredMetrics(filters: Filters, categories: Category[]): Promise<CurrentMetric[]> {
-  const supabase = createAnonClient();
-  let query = supabase.from("current_metrics").select("*");
   // Filtrar por fecha excluye a propósito los posts sin published_at: no se
   // puede afirmar que caigan dentro del rango.
-  if (filters.from) query = query.gte("published_at", filters.from);
-  if (filters.to) query = query.lte("published_at", filters.to);
-
-  const { data, error } = await query.order("published_at", { ascending: false, nullsFirst: false });
-  if (error) throw new Error(error.message);
-  return applyRowFilters((data ?? []) as CurrentMetric[], filters, categories);
+  const { where, params } = publishedAtRange(filters);
+  const rows = await query<CurrentMetric>(
+    `select * from current_metrics ${where} order by published_at desc nulls last`,
+    params
+  );
+  return applyRowFilters(rows, filters, categories);
 }
 
 // Ranking global por la métrica elegida. limit null = todos.
@@ -89,10 +110,7 @@ export function leaderboardsByType(
 }
 
 export async function getPostBySlug(slug: string): Promise<Post | null> {
-  const supabase = createAnonClient();
-  const { data, error } = await supabase.from("posts").select("*").eq("slug", slug).maybeSingle();
-  if (error) throw new Error(error.message);
-  return data as Post | null;
+  return queryOne<Post>("select * from posts where slug = $1", [slug]);
 }
 
 // Punto de un scatter: un post con su categoría canónica ya resuelta (se
@@ -139,17 +157,12 @@ export async function getSectionTimelines(
   filters: Filters,
   categories: Category[]
 ): Promise<{ category: Category; points: SectionTimelinePoint[] }[]> {
-  const supabase = createAnonClient();
-  let postsQuery = supabase.from("posts").select("id, post_type, extra_post_types, published_at");
-  if (filters.from) postsQuery = postsQuery.gte("published_at", filters.from);
-  if (filters.to) postsQuery = postsQuery.lte("published_at", filters.to);
-
-  const [postsRes, snapshotsRes] = await Promise.all([
-    postsQuery,
-    supabase.from("metric_snapshots").select("post_id, snapshot_date, views, open_rate"),
+  const [posts, snapshots] = await Promise.all([
+    getPostsInRange(filters),
+    query<Pick<MetricSnapshot, "post_id" | "snapshot_date" | "views" | "open_rate">>(
+      "select post_id, snapshot_date, views, open_rate from metric_snapshots"
+    ),
   ]);
-  if (postsRes.error) throw new Error(postsRes.error.message);
-  if (snapshotsRes.error) throw new Error(snapshotsRes.error.message);
 
   // Si el usuario no eligió secciones, se muestran las que se envían por
   // newsletter (las únicas donde "open rate por carga" significa algo). Si
@@ -160,7 +173,7 @@ export async function getSectionTimelines(
       : categories.filter((c) => NEWSLETTER_POST_TYPE_NAMES.includes(c.name));
 
   const categoriesByPostId = new Map<string, Category[]>();
-  for (const post of postsRes.data ?? []) {
+  for (const post of posts) {
     const matched = matchPostCategories(post.post_type, post.extra_post_types, categories).filter((category) =>
       requested.some((r) => r.id === category.id)
     );
@@ -170,7 +183,7 @@ export async function getSectionTimelines(
   type Bucket = { openRateSum: number; openRateCount: number; viewsSum: number; hasViews: boolean };
   const buckets = new Map<string, Bucket>(); // key: `${category.id}|${snapshot_date}`
 
-  for (const snap of snapshotsRes.data ?? []) {
+  for (const snap of snapshots) {
     for (const category of categoriesByPostId.get(snap.post_id) ?? []) {
       const key = `${category.id}|${snap.snapshot_date}`;
       const bucket = buckets.get(key) ?? { openRateSum: 0, openRateCount: 0, viewsSum: 0, hasViews: false };
@@ -287,30 +300,21 @@ function emptyMetricBucket(): MetricBucket {
 // posts que matchean el filtro, en esa fecha) y después una ventana móvil de
 // MOVING_AVERAGE_WINDOW cargas para bajar el ruido semana a semana.
 export async function getMovingAverages(filters: Filters, categories: Category[]): Promise<MovingAveragePoint[]> {
-  const supabase = createAnonClient();
-  let postsQuery = supabase.from("posts").select("id, post_type, extra_post_types, published_at");
-  if (filters.from) postsQuery = postsQuery.gte("published_at", filters.from);
-  if (filters.to) postsQuery = postsQuery.lte("published_at", filters.to);
-
-  const [postsRes, snapshotsRes] = await Promise.all([
-    postsQuery,
-    supabase.from("metric_snapshots").select("post_id, snapshot_date, views, new_subscribers, open_rate, engagement"),
+  const [posts, snapshots] = await Promise.all([
+    getPostsInRange(filters),
+    query<Pick<MetricSnapshot, "post_id" | "snapshot_date" | "views" | "new_subscribers" | "open_rate" | "engagement">>(
+      "select post_id, snapshot_date, views, new_subscribers, open_rate, engagement from metric_snapshots"
+    ),
   ]);
-  if (postsRes.error) throw new Error(postsRes.error.message);
-  if (snapshotsRes.error) throw new Error(snapshotsRes.error.message);
 
   const includedPostIds = new Set(
-    (postsRes.data ?? [])
-      .filter((p) =>
-        matchesTypes(p.post_type as string | null, p.extra_post_types as string[] | null, filters.types, categories)
-      )
-      .map((p) => p.id as string)
+    posts.filter((p) => matchesTypes(p.post_type, p.extra_post_types, filters.types, categories)).map((p) => p.id)
   );
 
   const buckets = new Map<string, MetricBucket>(); // key: snapshot_date
-  for (const snap of snapshotsRes.data ?? []) {
-    if (!includedPostIds.has(snap.post_id as string)) continue;
-    const date = snap.snapshot_date as string;
+  for (const snap of snapshots) {
+    if (!includedPostIds.has(snap.post_id)) continue;
+    const date = snap.snapshot_date;
     const bucket = buckets.get(date) ?? emptyMetricBucket();
     if (snap.open_rate != null) {
       bucket.openRateSum += snap.open_rate;
@@ -362,12 +366,7 @@ export async function getMovingAverages(filters: Filters, categories: Category[]
 }
 
 export async function getSnapshotsForPost(postId: string): Promise<MetricSnapshot[]> {
-  const supabase = createAnonClient();
-  const { data, error } = await supabase
-    .from("metric_snapshots")
-    .select("*")
-    .eq("post_id", postId)
-    .order("snapshot_date", { ascending: true });
-  if (error) throw new Error(error.message);
-  return (data ?? []) as MetricSnapshot[];
+  return query<MetricSnapshot>("select * from metric_snapshots where post_id = $1 order by snapshot_date asc", [
+    postId,
+  ]);
 }
