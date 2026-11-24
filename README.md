@@ -1,13 +1,14 @@
 # Perpetuo Analytics
 
-Web app de analítica para la publicación de Substack **Perpetuo**. Next.js (App Router) + Supabase (Postgres) + Vercel.
+Web app de analítica para la publicación de Substack **Perpetuo**. Next.js (App Router) + Neon (Postgres y Neon Auth) + Vercel.
 
 ## Filtros
 
-Las cuatro secciones de posts (`/`, `/rankings`, `/dashboards`, `/promedios`) comparten
+Las secciones de posts (`/`, `/rankings`, `/dashboards`, `/promedios`, `/tendencias`) comparten
 una sola barra de filtros: chips de un clic para el rango de fechas (7 / 30 / 90 días,
-6 meses, 1 año, o fechas exactas) y para las secciones (multi-selección: Estelar,
-Anteojos Editorial, El Creativo, Ensayo, Cuento, Poema, Foto-Ensayo). El filtro recorta
+6 meses, 1 año, o fechas exactas) y para las secciones (multi-selección: Sobremesa, Estelar,
+Anteojos Editorial, El Creativo, Ensayo, Cuento, Poema, Foto-Ensayo, Reseña, más las que se
+creen desde `/subir`). El filtro recorta
 todo lo que hay debajo a la vez — tablas, rankings y charts — así que los números de una
 página nunca se contradicen entre sí.
 
@@ -28,18 +29,20 @@ sección. Las cargas semanales solo reescriben la principal, nunca las adicional
 
 La columna **"Estimated value"** del export de Substack se guarda como
 `metric_snapshots.estimated_value` (USD) y se muestra como "Ingresos" en la tabla, los
-rankings, los stat tiles y la ficha de cada post. Requiere correr
-`supabase/migrations/0006_multi_tags_and_estimated_value.sql`.
+rankings, los stat tiles y la ficha de cada post.
 
 ## Funcionalidad
 
-- **`/subir`** (protegida por contraseña): carga semanal de un Excel/CSV con métricas por post (mapea columnas en español/inglés automáticamente) y carga del export de suscriptores de Substack (columnas fijas, sin mapeo manual).
+- **Cargas automáticas** (martes, jueves y sábado): un agente descarga los exports de Substack y los sube a `POST /api/ingest/posts` y `POST /api/ingest/subscribers` con `INGEST_API_KEY`. Ver [`docs/ingest-api.md`](./docs/ingest-api.md).
+- **`/subir`** (requiere cuenta de admin, ver "Acceso"): registro de las cargas automáticas (y sus errores), carga manual de un Excel/CSV con métricas por post (mapea columnas en español/inglés automáticamente) y del export de suscriptores de Substack (columnas fijas). La carga manual y la automática usan el mismo código (`lib/imports/`).
 - **`/`**: tabla ordenable por cualquier métrica (views, open rate, nuevos suscriptores, engagement, ingresos estimados) más búsqueda por título, sobre el snapshot más reciente de cada post.
 - **`/rankings`**: rankings en barras, globales y partidos por sección, por la métrica que elijas (views, open rate, nuevos suscriptores, engagement o ingresos estimados).
-- **`/post/[slug]`**: evolución de métricas de un post a través de los snapshots semanales.
+- **`/post/[slug]`**: interés a lo largo del tiempo (vistas nuevas por día entre cargas, con el pico y los repuntes marcados) y evolución de cada métrica a través de las cargas.
+- **`/tendencias`**: posts en alza entre las dos últimas cargas, posts viejos con "segunda vida" (≥3× su ritmo habitual y 5+ vistas/día, publicados hace más de 21 días) e interés por sección semana a semana (`lib/interest.ts`).
 - **`/promedios`**: promedios agregados y media móvil histórica de las métricas de posts.
 - **`/dashboards`**: scatter (open rate vs. views, views vs. nuevos suscriptores) y series temporales por sección.
 - **`/suscriptores`**: panel de analítica de suscriptores — KPIs, desgloses (tipo, sección, país, región, actividad, open rate, antigüedad), crecimiento neto acumulado y comparación gratis-vs-pago.
+- **`/suscriptores/retencion`**: retención a 1 y 3 meses por mes de alta y conversión a pago en 30/90 días (de las fechas de alta, baja y pago: cubre todo el histórico), y engagement en el primer y tercer mes de quienes se quedan vs. quienes se van (de las cargas automáticas: se llena a medida que se suman cargas).
 - **`/suscriptores/geografia`**: de dónde vienen y cómo cambia — ranking de países y regiones, cambio neto por país en la ventana elegida (90 días / 6 meses / 1 año), tabla con peso sobre la lista y miniatura de tendencia, histórico mes a mes por país (en suscriptores o en % del total) y por región, y desglose por estado/provincia.
 - **`/suscriptores/lista`**: búsqueda, filtros y paginación sobre la base completa de suscriptores.
 - **`/suscriptores/[id]`**: ficha individual de un suscriptor (antigüedad, métricas de engagement, preferencias de sección, evolución si hay más de una carga).
@@ -85,22 +88,40 @@ valor nunca depende de distinguir el color.
 
 ## Modelo de datos
 
-Ver [`supabase/schema.sql`](./supabase/schema.sql) y las migraciones en [`supabase/migrations/`](./supabase/migrations/) (pega cada archivo nuevo en Supabase → SQL Editor → Run, en orden). Resumen:
+Todo el esquema está en [`db/schema.sql`](./db/schema.sql) (antes eran `supabase/schema.sql` + 7 migraciones; quedó consolidado en un solo archivo idempotente). Para aplicarlo o actualizarlo:
+
+```bash
+npm run db:migrate
+```
+
+Corre contra `DATABASE_URL_UNPOOLED` (la conexión directa, la recomendada por Neon para cambios de esquema). Resumen:
 
 - `posts`: identidad estable de cada post (slug derivado del título; la URL es opcional).
-- `metric_snapshots`: una fila nueva por post en cada carga semanal — nunca se sobrescribe el histórico.
+- `metric_snapshots`: una fila nueva por post en cada carga (tres por semana con las cargas automáticas) — nunca se sobrescribe el histórico. Las series de `/dashboards` y `/promedios` las agrupan por semana (la última carga de cada semana).
 - `current_metrics` (vista): el snapshot más reciente de cada post.
+- `post_categories`: las secciones, editables desde `/subir`.
 - `subscribers`: identidad de cada suscriptor (email) + atributos descriptivos (tipo, plan, fechas de alta/baja, país, estado/provincia, preferencias de sección) que se actualizan en cada carga. `start_date` y `cancel_date` son las que sostienen todo el histórico de `/suscriptores/geografia`.
-- `subscriber_snapshots`: las métricas cuantitativas de actividad (aperturas, clics, views, comentarios, shares, revenue) por carga — mismo patrón de histórico que `metric_snapshots`.
-- `current_subscriber_metrics` (vista): el snapshot más reciente de cada suscriptor, con open rate y click rate ya calculados (`0003_fix_open_rate_6mo.sql` corrige el open rate para que no pase de 100%).
+- `subscriber_snapshots`: las métricas cuantitativas de actividad (aperturas, clics, views, comentarios, shares, revenue) por carga. Para no llenar la base con tres cargas por semana, después de cada carga se conservan solo las fotos de los primeros 100 días de cada suscriptor, su foto más reciente y la primera de cada mes (`lib/imports/retention-policy.ts`).
+- `ingest_runs`: registro de cada carga que llegó por la API de ingesta (exitosa o no).
+- `current_subscriber_metrics` (vista): el snapshot más reciente de cada suscriptor, con open rate (sobre correos únicos vistos, con tope de 100%) y click rate ya calculados.
 
-`0004_post_type_rename_and_backfill.sql` renombra "321 Editorial" a "El Creativo" en los posts ya cargados y completa el `post_type` de los que quedaron sin tipo, usando el calendario editorial fijo (lunes = Estelar, miércoles = Anteojos Editorial, viernes = El Creativo — ver `lib/post-types.ts`). Las cargas nuevas hacen lo mismo automáticamente cuando el CSV no trae `post_type`.
+Cuando un CSV de posts no trae `post_type`, la carga lo infiere del calendario editorial fijo (lunes = Estelar, miércoles = Anteojos Editorial, viernes = El Creativo — ver `lib/post-types.ts`).
+
+La app habla con Postgres solo desde el servidor (`lib/db.ts`, driver `@neondatabase/serverless` por HTTPS). La base no tiene una API pública: nadie fuera del servidor puede leerla, ni siquiera la lista de suscriptores.
+
+## Acceso
+
+`/subir` y la corrección manual de posts piden una cuenta de **Neon Auth** (correo y contraseña). Cualquiera puede crearse una cuenta desde `/subir`, pero solo los correos listados en `ADMIN_EMAILS` pueden cargar o modificar datos; el resto ve un aviso de "sin permiso". Si `ADMIN_EMAILS` no está configurada, nadie es admin. Las cuentas viven en el esquema `neon_auth` de la misma base.
+
+Las páginas de lectura (`/`, `/rankings`, `/suscriptores`, etc.) siguen siendo públicas.
 
 ## Desarrollo local
 
 ```bash
 npm install
-cp .env.example .env.local   # completa las variables (ver más abajo)
+neon env pull                # escribe DATABASE_URL, NEON_AUTH_BASE_URL, etc. en .env.local
+# agrega a .env.local: NEON_AUTH_COOKIE_SECRET, ADMIN_EMAILS y ANALYTICS_API_KEY
+npm run db:migrate           # solo la primera vez, o si cambió db/schema.sql
 npm run dev
 ```
 
@@ -108,12 +129,14 @@ npm run dev
 
 | Variable | De dónde sale |
 | --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Project Settings → API → Project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Project Settings → API → anon public |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API → service_role secret (nunca la expongas) |
-| `UPLOAD_PASSWORD` | La contraseña que tú elijas para entrar a `/subir` |
-| `SESSION_SECRET` | Cadena aleatoria larga, ej. `openssl rand -hex 32` |
-| `ANALYTICS_API_KEY` | Cadena aleatoria larga (ej. `openssl rand -hex 32`) que protege `/api/subscribers/lookup` |
+| `DATABASE_URL` | Neon (conexión con pooler). La escribe `neon env pull` / `neon deploy` |
+| `DATABASE_URL_UNPOOLED` | Neon (conexión directa, para `npm run db:migrate`). La escribe `neon env pull` |
+| `NEON_AUTH_BASE_URL` | URL de Neon Auth de la rama. La escribe `neon env pull` |
+| `NEON_AUTH_COOKIE_SECRET` | Cadena aleatoria de 32+ caracteres, ej. `openssl rand -base64 32` |
+| `ADMIN_EMAILS` | Correos con permiso de admin, separados por coma |
+| `ANALYTICS_API_KEY` | Cadena aleatoria larga (ej. `openssl rand -hex 32`) que protege `/api/subscribers/lookup` (solo lectura; la usa n8n) |
+| `INGEST_API_KEY` | Otra cadena aleatoria larga, distinta de la anterior: la clave de escritura de la API de ingesta (la usa el agente de cargas automáticas) |
+| `INGEST_TIMEZONE` | Opcional. Zona horaria para la fecha de las cargas automáticas (por defecto `America/Mexico_City`) |
 
 ## API para integraciones (n8n)
 

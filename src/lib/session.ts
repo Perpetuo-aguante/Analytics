@@ -1,58 +1,47 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
-import { cookies } from "next/headers";
+import { connection } from "next/server";
+import { getAuth } from "./auth/server";
 
-// Este módulo usa node:crypto, así que solo se puede importar desde código
-// de servidor (server actions, Server Components) — nunca desde un
-// componente cliente.
+// Quién puede cargar y corregir datos. Antes era una contraseña compartida
+// (UPLOAD_PASSWORD); ahora cada persona entra con su cuenta de Neon Auth, y
+// solo los correos de ADMIN_EMAILS (separados por coma) tienen permiso. Una
+// cuenta puede crearla cualquiera desde /subir, pero sin estar en la lista no
+// puede hacer nada. Si ADMIN_EMAILS no está configurada, nadie es admin
+// (falla cerrado).
+//
+// Solo se importa desde el servidor (Server Components y Server Actions).
 
-export const SESSION_COOKIE_NAME = "perpetuo_session";
-const SESSION_DURATION_SECONDS = 60 * 60 * 24 * 14; // 14 días
-export const SESSION_MAX_AGE = SESSION_DURATION_SECONDS;
-
-function getSecret(): string {
-  const secret = process.env.SESSION_SECRET;
-  if (!secret) throw new Error("Falta la variable de entorno SESSION_SECRET.");
-  return secret;
+function adminEmails(): Set<string> {
+  return new Set(
+    (process.env.ADMIN_EMAILS ?? "")
+      .split(",")
+      .map((email) => email.trim().toLowerCase())
+      .filter(Boolean)
+  );
 }
 
-function sign(value: string): string {
-  return createHmac("sha256", getSecret()).update(value).digest("hex");
+export type SessionStatus =
+  | { state: "signed-out" }
+  | { state: "not-allowed"; email: string }
+  | { state: "admin"; email: string };
+
+export async function getSessionStatus(): Promise<SessionStatus> {
+  // La sesión depende de las cookies de cada request: esto le dice a Next
+  // que la página que la consulta no se puede prerenderizar en el build.
+  await connection();
+  const { data } = await getAuth().getSession();
+  const email = data?.user?.email?.toLowerCase();
+  if (!email) return { state: "signed-out" };
+  return adminEmails().has(email) ? { state: "admin", email } : { state: "not-allowed", email };
 }
 
-function safeEqual(a: string, b: string): boolean {
-  const bufA = Buffer.from(a);
-  const bufB = Buffer.from(b);
-  if (bufA.length !== bufB.length) return false;
-  return timingSafeEqual(bufA, bufB);
-}
-
-// El valor de la cookie es "<expiracion>.<firma>". La firma evita que
-// alguien fabrique una cookie válida sin conocer SESSION_SECRET.
-export function createSessionCookieValue(): string {
-  const expiresAt = String(Date.now() + SESSION_DURATION_SECONDS * 1000);
-  return `${expiresAt}.${sign(expiresAt)}`;
-}
-
-export function isValidSessionCookieValue(value: string | undefined): boolean {
-  if (!value) return false;
-  const [expiresAt, signature] = value.split(".");
-  if (!expiresAt || !signature) return false;
-  if (!safeEqual(signature, sign(expiresAt))) return false;
-  return Number(expiresAt) > Date.now();
-}
-
-export function checkPassword(password: string): boolean {
-  const expected = process.env.UPLOAD_PASSWORD;
-  if (!expected) throw new Error("Falta la variable de entorno UPLOAD_PASSWORD.");
-  return safeEqual(password, expected);
+export async function isAdmin(): Promise<boolean> {
+  return (await getSessionStatus()).state === "admin";
 }
 
 // Lanza si no hay una sesión de admin válida. Usar al principio de toda
 // server action que escriba datos (cargas, ediciones manuales, etc.).
 export async function requireSession(): Promise<void> {
-  const cookieStore = await cookies();
-  const session = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  if (!isValidSessionCookieValue(session)) {
-    throw new Error("Sesión expirada. Vuelve a iniciar sesión.");
-  }
+  const status = await getSessionStatus();
+  if (status.state === "signed-out") throw new Error("Sesión expirada. Vuelve a iniciar sesión.");
+  if (status.state === "not-allowed") throw new Error("Tu cuenta no tiene permiso para modificar datos.");
 }

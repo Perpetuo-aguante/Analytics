@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updatePost } from "./actions";
 import type { Category } from "@/lib/categories";
-import type { MetricSnapshot, Post } from "@/lib/supabase/types";
+import type { MetricSnapshot, Post } from "@/lib/db-types";
 
 function fractionToPercentInput(value: number | null): string {
   return value == null ? "" : String(Math.round(value * 1000) / 10);

@@ -1,9 +1,9 @@
 // Categorías de post: viven en la tabla post_categories (ver
-// supabase/migrations/0005_post_categories.sql) en vez de una lista fija en
+// db/schema.sql) en vez de una lista fija en
 // código, para que se puedan crear y borrar desde /subir sin redeployar.
 
-import { createAnonClient } from "./supabase/server";
-import type { PostCategory } from "./supabase/types";
+import { query } from "./db";
+import type { PostCategory } from "./db-types";
 
 export type MarkerShape = "circle" | "square" | "triangle" | "diamond" | "cross" | "star" | "ring";
 
@@ -32,11 +32,5 @@ export function autoStyleForIndex(index: number): { color: string; shape: Marker
 }
 
 export async function getCategories(): Promise<Category[]> {
-  const supabase = createAnonClient();
-  const { data, error } = await supabase
-    .from("post_categories")
-    .select("*")
-    .order("sort_order", { ascending: true });
-  if (error) throw new Error(error.message);
-  return (data ?? []) as Category[];
+  return query<Category>("select * from post_categories order by sort_order asc");
 }

@@ -9,7 +9,8 @@ import {
 } from "@/lib/columns";
 import { cellToString, parseDateValue, parseIntValue, parseMoneyValue, parseRateValue } from "@/lib/format";
 import { formatMoney } from "@/lib/display";
-import { commitImport, parseFile, type ImportSummary, type ParsePreview } from "./actions";
+import { commitImport, parseFile, type ParsePreview } from "./actions";
+import type { ImportSummary } from "@/lib/imports/posts";
 
 type Mapping = Record<FieldKey, string | null>;
 

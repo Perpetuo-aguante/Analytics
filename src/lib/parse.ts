@@ -1,3 +1,4 @@
+import { gunzipSync } from "node:zlib";
 import ExcelJS from "exceljs";
 import Papa from "papaparse";
 import { cellToString } from "./format";
@@ -18,8 +19,31 @@ export async function parseUploadedFile(file: File): Promise<ParsedSheet> {
   return isCsv ? parseCsv(buffer) : parseXlsx(buffer);
 }
 
+// Máximo ya descomprimido para la API de ingesta (un export de 50.000
+// suscriptores con ~40 columnas ronda los 20MB).
+const MAX_DECOMPRESSED_BYTES = 60 * 1024 * 1024;
+
+// Para la API de ingesta: detecta el formato por el contenido en vez de por
+// el nombre del archivo. Acepta CSV, .xlsx (zip) y cualquiera de los dos
+// comprimido con gzip.
+export async function parseSheetBuffer(input: Buffer): Promise<ParsedSheet> {
+  let buffer = input;
+  if (buffer[0] === 0x1f && buffer[1] === 0x8b) {
+    buffer = gunzipSync(buffer, { maxOutputLength: MAX_DECOMPRESSED_BYTES });
+  }
+  if (buffer.length > MAX_DECOMPRESSED_BYTES) throw new Error("El archivo es demasiado grande.");
+  const isXlsx = buffer[0] === 0x50 && buffer[1] === 0x4b;
+  return isXlsx ? parseXlsx(buffer) : parseCsv(buffer);
+}
+
+// Excel y algunos exports guardan el CSV con BOM: sin quitarlo, el primer
+// encabezado no matchea ("\uFEFFEmail" ≠ "Email").
+function stripBom(buffer: Buffer): Buffer {
+  return buffer[0] === 0xef && buffer[1] === 0xbb && buffer[2] === 0xbf ? buffer.subarray(3) : buffer;
+}
+
 function parseCsv(buffer: Buffer): ParsedSheet {
-  const text = buffer.toString("utf-8");
+  const text = stripBom(buffer).toString("utf-8");
   const result = Papa.parse<Record<string, string>>(text, {
     header: true,
     skipEmptyLines: true,

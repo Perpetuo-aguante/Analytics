@@ -2,7 +2,7 @@ import Link from "next/link";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/display";
 import { matchPostCategories } from "@/lib/post-types";
 import type { Category } from "@/lib/categories";
-import type { CurrentMetric } from "@/lib/supabase/types";
+import type { CurrentMetric } from "@/lib/db-types";
 
 // La lista de posts como tabla ordenable en vez de párrafos apilados: con las
 // métricas en columna se comparan de un vistazo, y la cabecera ordena por

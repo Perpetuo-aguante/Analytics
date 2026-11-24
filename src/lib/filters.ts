@@ -1,6 +1,6 @@
 // Estado de filtrado compartido por todas las secciones de la app. Vive en la
 // URL (no en React state) para que sea compartible, sobreviva a un refresh, y
-// para que las páginas server puedan consultar Supabase ya filtrado.
+// para que las páginas server puedan consultar la base ya filtrada.
 //
 // La decisión importante: el rango de fechas se guarda RELATIVO ("rango=30")
 // en vez de absoluto ("desde=2026-08-12&hasta=2026-09-11"). Así el chip de
@@ -39,7 +39,7 @@ export type FilterSearchParams = {
 
 export type Filters = {
   range: RangeKey;
-  // Fechas ya resueltas (YYYY-MM-DD) listas para pasarle a Supabase.
+  // Fechas ya resueltas (YYYY-MM-DD) listas para pasarle a la base.
   from: string | null;
   to: string | null;
   // Nombres canónicos de categoría (Category["name"]), no slugs.

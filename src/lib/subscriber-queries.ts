@@ -1,6 +1,6 @@
 import { REGION_ORDER, countryLabel, countryRegion, sameCountry } from "./geo";
-import { createAnonClient } from "./supabase/server";
-import type { CurrentSubscriberMetric, SubscriberSnapshot } from "./supabase/types";
+import { query, queryOne } from "./db";
+import type { CurrentSubscriberMetric, SubscriberSnapshot } from "./db-types";
 
 // Tipos de suscripción paga observados en el export de Substack. El
 // desglose por tipo (gráfico "Suscriptores por tipo") no depende de esta
@@ -35,35 +35,10 @@ export type SubscriberFilters = {
 
 export type SubscriberSort = "antiguedad" | "open_rate" | "actividad" | "revenue" | "views";
 
-// Supabase/PostgREST corta cualquier select sin .range() en 1000 filas por
-// default (configurable en Project Settings → API → Max Rows, pero 1000 es
-// lo usual). Con ~4000 suscriptores eso truncaba silenciosamente el panel y
-// la lista a los primeros 1000 — el import en sí escribía todo bien, era
-// solo la lectura la que se quedaba corta. Por eso acá se pagina hasta
-// agotar las filas en vez de un único `.select("*")`.
-const SUPABASE_PAGE_SIZE = 1000;
-
-async function fetchAllPages<T>(
-  fetchPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>
-): Promise<T[]> {
-  const all: T[] = [];
-  let from = 0;
-  for (;;) {
-    const { data, error } = await fetchPage(from, from + SUPABASE_PAGE_SIZE - 1);
-    if (error) throw new Error(error.message);
-    const rows = data ?? [];
-    all.push(...rows);
-    if (rows.length < SUPABASE_PAGE_SIZE) break;
-    from += SUPABASE_PAGE_SIZE;
-  }
-  return all;
-}
-
+// Se lee la base completa de una vez: Postgres devuelve todas las filas
+// (con Supabase había que paginar de a 1000 porque PostgREST cortaba ahí).
 export async function fetchAllSubscriberMetrics(): Promise<CurrentSubscriberMetric[]> {
-  const supabase = createAnonClient();
-  return fetchAllPages<CurrentSubscriberMetric>((from, to) =>
-    supabase.from("current_subscriber_metrics").select("*").range(from, to)
-  );
+  return query<CurrentSubscriberMetric>("select * from current_subscriber_metrics");
 }
 
 export async function getSubscribers(
@@ -126,9 +101,8 @@ export async function getSubscriberFilterOptions(): Promise<{
   countries: string[];
   sections: string[];
 }> {
-  const supabase = createAnonClient();
-  const rows = await fetchAllPages<{ type: string | null; country: string | null; sections: string[] | null }>(
-    (from, to) => supabase.from("subscribers").select("type, country, sections").range(from, to)
+  const rows = await query<{ type: string | null; country: string | null; sections: string[] | null }>(
+    "select type, country, sections from subscribers"
   );
 
   const types = new Set<string>();
@@ -151,24 +125,24 @@ export type SubscriberDetail = {
   history: SubscriberSnapshot[];
 };
 
-export async function getSubscriberById(id: string): Promise<SubscriberDetail | null> {
-  const supabase = createAnonClient();
-  const [metricRes, historyRes] = await Promise.all([
-    supabase.from("current_subscriber_metrics").select("*").eq("subscriber_id", id).maybeSingle(),
-    supabase
-      .from("subscriber_snapshots")
-      .select("*")
-      .eq("subscriber_id", id)
-      .order("snapshot_date", { ascending: true }),
-  ]);
-  if (metricRes.error) throw new Error(metricRes.error.message);
-  if (historyRes.error) throw new Error(historyRes.error.message);
-  if (!metricRes.data) return null;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-  const row = metricRes.data as CurrentSubscriberMetric;
+export async function getSubscriberById(id: string): Promise<SubscriberDetail | null> {
+  // El id llega de la URL: si no es un UUID válido, Postgres rechazaría la
+  // consulta con un error; mejor responder "no existe" (404).
+  if (!UUID_PATTERN.test(id)) return null;
+  const [row, history] = await Promise.all([
+    queryOne<CurrentSubscriberMetric>("select * from current_subscriber_metrics where subscriber_id = $1", [id]),
+    query<SubscriberSnapshot>(
+      "select * from subscriber_snapshots where subscriber_id = $1 order by snapshot_date asc",
+      [id]
+    ),
+  ]);
+  if (!row) return null;
+
   return {
     subscriber: { ...row, tenureDays: computeTenureDays(row.start_date, row.cancel_date) },
-    history: (historyRes.data ?? []) as SubscriberSnapshot[],
+    history,
   };
 }
 

@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAnonClient } from "@/lib/supabase/server";
+import { queryOne } from "@/lib/db";
 import { computeTenureDays } from "@/lib/subscriber-queries";
 import { formatMoney, formatNumber, formatPercent, formatTenure } from "@/lib/display";
-import type { CurrentSubscriberMetric } from "@/lib/supabase/types";
+import type { CurrentSubscriberMetric } from "@/lib/db-types";
 
 // Endpoint pensado para el workflow de n8n de bajas ("Perpetuo: Bajas
 // Substack → Slack + Apollo Unsubs"): dado el email de un suscriptor que se
-// dio de baja, devuelve todos los datos que tenemos de él/ella en Supabase
+// dio de baja, devuelve todos los datos que tenemos de él/ella en la base
 // junto con un resumen ya formateado en mrkdwn de Slack, para no duplicar
 // esa lógica de formateo en el workflow.
 //
@@ -29,15 +29,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Falta el parámetro email." }, { status: 400 });
   }
 
-  const supabase = createAnonClient();
-  const { data, error } = await supabase
-    .from("current_subscriber_metrics")
-    .select("*")
-    .eq("email", email)
-    .maybeSingle();
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  let data: CurrentSubscriberMetric | null;
+  try {
+    data = await queryOne<CurrentSubscriberMetric>("select * from current_subscriber_metrics where email = $1", [
+      email,
+    ]);
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Error de base de datos." }, { status: 500 });
   }
 
   if (!data) {
@@ -48,7 +46,7 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  const row = data as CurrentSubscriberMetric;
+  const row = data;
   const tenureDays = computeTenureDays(row.start_date, row.cancel_date);
 
   return NextResponse.json({

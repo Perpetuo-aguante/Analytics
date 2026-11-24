@@ -28,12 +28,17 @@ export function MultiLineChart({
   series,
   title,
   percent = false,
+  keepEmptyDates = false,
   width = 640,
   height = 300,
 }: {
   series: LineSeries[];
   title: string;
   percent?: boolean;
+  // Mantiene en el eje las fechas en las que ninguna serie tiene valor, para
+  // que la distancia en el eje sea proporcional al tiempo (meses sin datos
+  // incluidos). Por defecto se omiten.
+  keepEmptyDates?: boolean;
   width?: number;
   height?: number;
 }) {
@@ -44,9 +49,9 @@ export function MultiLineChart({
 
   const allDates = useMemo(() => {
     const set = new Set<string>();
-    for (const s of series) for (const p of s.points) if (p.value != null) set.add(p.date);
+    for (const s of series) for (const p of s.points) if (keepEmptyDates || p.value != null) set.add(p.date);
     return Array.from(set).sort();
-  }, [series]);
+  }, [series, keepEmptyDates]);
 
   const padding = { top: 16, right: 124, bottom: 28, left: 52 };
   const innerWidth = width - padding.left - padding.right;
@@ -139,10 +144,30 @@ export function MultiLineChart({
             const coords = s.points
               .filter((p): p is { date: string; value: number } => p.value != null)
               .map((p) => ({ x: xForDate(p.date), y: yForValue(p.value) }));
-            const path = coords.map((c, i) => `${i === 0 ? "M" : "L"} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`).join(" ");
+            // Con keepEmptyDates, una fecha sin valor corta la línea: unir los
+            // dos lados inventaría valores para meses que no los tienen.
+            let gap = true;
+            const path = keepEmptyDates
+              ? s.points
+                  .map((p) => {
+                    if (p.value == null) {
+                      gap = true;
+                      return "";
+                    }
+                    const cmd = `${gap ? "M" : "L"} ${xForDate(p.date).toFixed(1)} ${yForValue(p.value).toFixed(1)}`;
+                    gap = false;
+                    return cmd;
+                  })
+                  .filter(Boolean)
+                  .join(" ")
+              : coords.map((c, i) => `${i === 0 ? "M" : "L"} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`).join(" ");
             return (
               <g key={s.key}>
                 <path d={path} fill="none" stroke={s.color} strokeWidth={2} strokeLinejoin="round" />
+                {/* Con huecos, un mes aislado no tiene vecinos con quien unirse:
+                    cada valor lleva su punto para que no desaparezca. */}
+                {keepEmptyDates &&
+                  coords.map((c, i) => <circle key={i} cx={c.x} cy={c.y} r={3} fill={s.color} />)}
                 {/* Con muchos meses en el eje, un punto por mes emborrona la
                     línea: solo se marca el último valor de cada serie. */}
                 {coords.length > 0 && (

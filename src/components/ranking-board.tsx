@@ -3,7 +3,7 @@ import { formatMoney, formatNumber, formatPercent } from "@/lib/display";
 import { matchPostCategories } from "@/lib/post-types";
 import type { Category } from "@/lib/categories";
 import type { RankingMetric } from "@/lib/metrics";
-import type { CurrentMetric } from "@/lib/supabase/types";
+import type { CurrentMetric } from "@/lib/db-types";
 
 // El ranking como barras horizontales en vez de una lista numerada: la
 // diferencia entre el 1º y el 5º se ve, no hay que restar dos números

@@ -1,8 +1,8 @@
 // Las métricas por las que se puede rankear y ordenar. Vive aparte de
 // queries.ts porque también la consumen componentes cliente (los selectores
-// de métrica), que no pueden importar el cliente de Supabase.
+// de métrica), que no pueden importar el cliente de la base (lib/db.ts).
 
-import type { CurrentMetric } from "./supabase/types";
+import type { CurrentMetric } from "./db-types";
 
 export const RANKING_METRICS = [
   { key: "views", label: "Views", column: "views", format: "number" },

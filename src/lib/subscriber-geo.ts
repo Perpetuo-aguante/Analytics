@@ -29,7 +29,7 @@ import {
   type RegionLabel,
 } from "./geo";
 import { fetchAllSubscriberMetrics, isPaidType } from "./subscriber-queries";
-import type { CurrentSubscriberMetric } from "./supabase/types";
+import type { CurrentSubscriberMetric } from "./db-types";
 
 export const GEO_WINDOWS = [
   { key: "90", label: "90 días", days: 90 },
@@ -266,7 +266,7 @@ export async function getSubscriberGeoDashboard(
 /**
  * El cálculo, separado de la lectura de la base: recibe las filas de
  * `current_subscriber_metrics` y devuelve el panel entero. Así se puede
- * ejercitar con filas de prueba sin Supabase de por medio.
+ * ejercitar con filas de prueba sin la base de por medio.
  */
 export function buildGeoDashboard(
   rows: CurrentSubscriberMetric[],
