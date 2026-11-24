@@ -60,6 +60,18 @@ function publishedAtRange(filters: Filters): { where: string; params: string[] }
   return { where: conditions.length > 0 ? `where ${conditions.join(" and ")}` : "", params };
 }
 
+// Las series históricas se agrupan por semana (lunes a domingo) con la última
+// carga de cada post en esa semana. Antes había una carga por semana; con las
+// cargas automáticas hay tres, y sin agrupar, la media móvil de 3 cargas y
+// las sumas por carga cambiarían de significado. snapshot_date pasa a ser el
+// lunes de la semana.
+function weeklySnapshotsSql(columns: string): string {
+  return `select distinct on (post_id, date_trunc('week', snapshot_date))
+            post_id, to_char(date_trunc('week', snapshot_date), 'YYYY-MM-DD') as snapshot_date, ${columns}
+          from metric_snapshots
+          order by post_id, date_trunc('week', snapshot_date), snapshot_date desc`;
+}
+
 type PostCategoryRow = Pick<Post, "id" | "post_type" | "extra_post_types" | "published_at">;
 
 function getPostsInRange(filters: Filters): Promise<PostCategoryRow[]> {
@@ -160,7 +172,7 @@ export async function getSectionTimelines(
   const [posts, snapshots] = await Promise.all([
     getPostsInRange(filters),
     query<Pick<MetricSnapshot, "post_id" | "snapshot_date" | "views" | "open_rate">>(
-      "select post_id, snapshot_date, views, open_rate from metric_snapshots"
+      weeklySnapshotsSql("views, open_rate")
     ),
   ]);
 
@@ -268,7 +280,7 @@ export type MovingAveragePoint = {
   avgViews: number | null;
 };
 
-// Cuántas cargas semanales se promedian para suavizar la serie histórica.
+// Cuántas semanas se promedian para suavizar la serie histórica.
 const MOVING_AVERAGE_WINDOW = 3;
 
 type MetricBucket = {
@@ -303,7 +315,7 @@ export async function getMovingAverages(filters: Filters, categories: Category[]
   const [posts, snapshots] = await Promise.all([
     getPostsInRange(filters),
     query<Pick<MetricSnapshot, "post_id" | "snapshot_date" | "views" | "new_subscribers" | "open_rate" | "engagement">>(
-      "select post_id, snapshot_date, views, new_subscribers, open_rate, engagement from metric_snapshots"
+      weeklySnapshotsSql("views, new_subscribers, open_rate, engagement")
     ),
   ]);
 

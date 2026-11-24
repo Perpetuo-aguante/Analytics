@@ -4,6 +4,8 @@ import { getPostBySlug, getSnapshotsForPost } from "@/lib/queries";
 import { getCategories } from "@/lib/categories";
 import { matchPostCategories } from "@/lib/post-types";
 import { LineChart, type ChartPoint } from "@/components/line-chart";
+import { InterestChart } from "@/components/interest-chart";
+import { interestIntervals, summarizePeaks } from "@/lib/interest";
 import { EditPostForm } from "./edit-form";
 import { isAdmin as getIsAdmin } from "@/lib/session";
 import type { MetricSnapshot } from "@/lib/db-types";
@@ -19,6 +21,8 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
     getCategories(),
   ]);
   const latestSnapshot = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
+  const intervals = interestIntervals(snapshots, post.published_at);
+  const peaks = summarizePeaks(intervals, post.published_at);
   const postCategories = matchPostCategories(post.post_type, post.extra_post_types, categories);
   const categoryLabel =
     postCategories.length > 0 ? postCategories.map((c) => c.name).join(", ") : (post.post_type ?? "—");
@@ -48,7 +52,34 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
         <p className="mt-12 text-sm text-ink-muted">Todavía no hay snapshots de métricas para este post.</p>
       ) : (
         <div className="mt-12 space-y-12">
-          <ChartBlock title="Views" snapshots={snapshots} field="views" />
+          <section>
+            <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-ink-muted">
+              Interés a lo largo del tiempo
+            </h2>
+            <p className="mb-3 text-sm text-ink-secondary">
+              Vistas nuevas por día entre una carga y la siguiente.{" "}
+              {peaks.peak && (
+                <>
+                  El pico fue de <strong>{formatRate(peaks.peak.perDay)} vistas/día</strong> (
+                  {peaks.peak.start} → {peaks.peak.end}
+                  {peaks.peak.launch ? ", en el lanzamiento" : ""}).{" "}
+                </>
+              )}
+              {peaks.baselinePerDay != null && <>Su ritmo habitual pasado el lanzamiento: {formatRate(peaks.baselinePerDay)}/día. </>}
+              {peaks.resurgences.length > 0 && (
+                <>
+                  Tuvo {peaks.resurgences.length === 1 ? "un repunte" : `${peaks.resurgences.length} repuntes`} de
+                  interés después del lanzamiento: el tema volvió a circular.
+                </>
+              )}
+            </p>
+            {intervals.length > 0 ? (
+              <InterestChart intervals={intervals} peak={peaks.peak} resurgences={peaks.resurgences} />
+            ) : (
+              <p className="text-sm text-ink-muted">Hacen falta al menos dos cargas (o la fecha de publicación y una carga).</p>
+            )}
+          </section>
+          <ChartBlock title="Views acumuladas" snapshots={snapshots} field="views" />
           <ChartBlock title="Nuevos suscriptores" snapshots={snapshots} field="new_subscribers" />
           <ChartBlock title="Engagement" snapshots={snapshots} field="engagement" percent />
           <ChartBlock title="Open rate" snapshots={snapshots} field="open_rate" percent />
@@ -58,6 +89,10 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
       )}
     </main>
   );
+}
+
+function formatRate(v: number): string {
+  return v >= 10 ? Math.round(v).toLocaleString("es") : v.toFixed(1);
 }
 
 function ChartBlock({

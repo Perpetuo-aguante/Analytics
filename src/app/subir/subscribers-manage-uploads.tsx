@@ -40,7 +40,9 @@ export function SubscribersManageUploads() {
       <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-ink-muted">Cargas anteriores</h2>
       <p className="mb-4 text-sm text-ink-muted">
         Cada carga agrupa todos los suscriptores subidos con la misma fecha de snapshot. Eliminar una carga borra
-        sus métricas; los suscriptores que solo existían por esa carga también se eliminan.
+        sus métricas; los suscriptores que solo existían por esa carga también se eliminan. Las cargas viejas
+        muestran menos suscriptores que cuando se subieron: para ahorrar espacio, de cada suscriptor se conservan
+        todas las cargas de sus primeros 100 días, la más reciente y la primera de cada mes.
       </p>
 
       {error && <p className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}

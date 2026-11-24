@@ -102,7 +102,15 @@ insert into post_categories (name, slug, color, shape, sort_order) values
   ('Ensayo', 'ensayo', '#eda100', 'square', 4),
   ('Cuento', 'cuento', '#8a4fd0', 'triangle', 5),
   ('Poema', 'poema', '#008300', 'diamond', 6),
-  ('Foto-Ensayo', 'foto-ensayo', '#e87ba4', 'ring', 7)
+  ('Foto-Ensayo', 'foto-ensayo', '#e87ba4', 'ring', 7),
+  -- Secciones nuevas (nov. 2026), sin día fijo de publicación. Colores
+  -- validados con el validador de la skill dataviz sobre la superficie de la
+  -- app, en este orden de pares adyacentes: el naranja (la única familia de
+  -- la paleta que faltaba) solo pasa en el primer lugar; Reseña comparte el
+  -- violeta de Cuento (no hay una novena familia de color) y se distingue
+  -- por la forma (anillo).
+  ('Sobremesa', 'sobremesa', '#eb6834', 'circle', 0),
+  ('Reseña', 'resena', '#8a4fd0', 'ring', 8)
 on conflict (name) do nothing;
 
 -- ─────────────────────────────────────────────
@@ -234,3 +242,23 @@ select distinct on (ss.subscriber_id)
 from subscriber_snapshots ss
 join subscribers s on s.id = ss.subscriber_id
 order by ss.subscriber_id, ss.snapshot_date desc;
+
+-- ─────────────────────────────────────────────
+-- ingest_runs: registro de cada carga que llega por la API de ingesta
+-- (app/api/ingest/*), exitosa o no. Sirve para ver en /subir si el agente
+-- automático corrió y si falló.
+-- ─────────────────────────────────────────────
+create table if not exists ingest_runs (
+  id uuid primary key default gen_random_uuid(),
+  kind text not null,                      -- 'posts' | 'subscribers'
+  snapshot_date date,
+  ok boolean not null,
+  dry_run boolean not null default false,
+  row_count integer,
+  summary jsonb,                           -- el resumen de la importación
+  error text,
+  source text,                             -- User-Agent de quien subió
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_ingest_runs_created on ingest_runs (created_at desc);

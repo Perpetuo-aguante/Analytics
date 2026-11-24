@@ -1,10 +1,10 @@
 import Link from "next/link";
 
-// Las tres vistas de la sección de suscriptores. Van con `.chip` (el control
+// Las vistas de la sección de suscriptores. Van con `.chip` (el control
 // de la app, que marca el activo con relleno + peso) y no con `.btn-secondary`,
 // que quedó sin definición en el rediseño: con esa clase las pestañas se
 // veían como texto suelto y no había forma de saber en cuál estabas.
-export function SubscriberTabs({ active }: { active: "panel" | "geografia" | "lista" }) {
+export function SubscriberTabs({ active }: { active: "panel" | "retencion" | "geografia" | "lista" }) {
   return (
     <nav aria-label="Vistas de suscriptores" className="mb-8 flex flex-wrap gap-2 text-sm">
       <Link
@@ -14,6 +14,14 @@ export function SubscriberTabs({ active }: { active: "panel" | "geografia" | "li
         aria-current={active === "panel" ? "page" : undefined}
       >
         Panel
+      </Link>
+      <Link
+        href="/suscriptores/retencion"
+        className="chip"
+        data-active={active === "retencion"}
+        aria-current={active === "retencion" ? "page" : undefined}
+      >
+        Retención
       </Link>
       <Link
         href="/suscriptores/geografia"

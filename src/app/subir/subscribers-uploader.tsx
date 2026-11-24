@@ -1,10 +1,10 @@
 "use client";
 
+import type { SubscriberImportSummary } from "@/lib/imports/subscribers";
 import { useState, useTransition } from "react";
 import {
   commitSubscriberImport,
   parseSubscriberFile,
-  type SubscriberImportSummary,
   type SubscriberParsePreview,
 } from "./subscriber-actions";
 
@@ -122,7 +122,8 @@ export function SubscribersUploader() {
         <div className="panel space-y-4 px-6 py-6">
           <p className="text-sm">
             Listo. {summary.subscribersCreados} suscriptores nuevos, {summary.subscribersActualizados} actualizados,{" "}
-            {summary.snapshots} snapshots guardados.
+            {summary.snapshots} snapshots guardados
+            {summary.snapshotsDepurados > 0 && `, ${summary.snapshotsDepurados} snapshots viejos depurados`}.
           </p>
           <button onClick={handleReset} className="text-sm font-medium text-blue underline underline-offset-2">
             Cargar otro archivo

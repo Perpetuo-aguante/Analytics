@@ -8,6 +8,7 @@ import { CategoryManager } from "./category-manager";
 import { SubscribersUploader } from "./subscribers-uploader";
 import { SubscribersManageUploads } from "./subscribers-manage-uploads";
 import { SignOutButton } from "./sign-out-button";
+import { IngestRuns } from "./ingest-runs";
 
 export default async function SubirPage() {
   const session = await getSessionStatus();
@@ -42,6 +43,8 @@ export default async function SubirPage() {
         <h1 className="font-display text-2xl font-semibold">Cargar métricas semanales</h1>
         <SignOutButton />
       </div>
+      <IngestRuns />
+      <hr className="my-12 border-line" />
       <CategoryManager initialCategories={categories} />
       <hr className="my-12 border-line" />
       <h2 className="mb-6 font-display text-xl font-semibold">Métricas de posts</h2>
