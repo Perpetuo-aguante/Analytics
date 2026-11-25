@@ -111,6 +111,16 @@ export function suggestMapping(headers: string[]): Record<FieldKey, string | nul
     const match = normalized.find((h) => ALIASES[field].includes(h.norm));
     result[field] = match ? match.raw : null;
   }
+  // Export directo de Substack (Stats > Publicaciones > Descargar CSV): trae
+  // "title" con el título real y no trae "post_id". Si no hay otra columna de
+  // título, "title" es el título y no el subtítulo/autor.
+  if (!result.title) {
+    const titleCol = normalized.find((h) => h.norm === "title" || h.norm === "post title");
+    if (titleCol) {
+      result.title = titleCol.raw;
+      if (result.author === titleCol.raw) result.author = null;
+    }
+  }
   return result;
 }
 
