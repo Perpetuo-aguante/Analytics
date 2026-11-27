@@ -39,7 +39,7 @@ export function RankingBoard({
   return (
     <section className="panel p-5">
       <div className="mb-4">
-        <h2 className="font-display text-base font-semibold">{title}</h2>
+        <h2 className="font-display text-lg font-bold">{title}</h2>
         {subtitle && <p className="mt-0.5 text-xs text-ink-muted">{subtitle}</p>}
       </div>
 

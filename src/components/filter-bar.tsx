@@ -88,7 +88,7 @@ export function FilterBar({
     <section
       aria-label="Filtros"
       data-pending={isPending ? "true" : undefined}
-      className="panel mb-8 space-y-4 p-4 transition-opacity data-[pending=true]:opacity-60 sm:p-5"
+      className="panel relative z-10 mb-8 space-y-4 p-4 transition-opacity data-[pending=true]:opacity-60 sm:p-5"
     >
       {/* Fechas primero: es el filtro que todo el mundo toca antes que nada. */}
       <div className="flex flex-wrap items-center gap-2">
@@ -116,7 +116,7 @@ export function FilterBar({
           <summary className="chip cursor-pointer list-none" data-active={filters.range === "custom"}>
             Fechas exactas
           </summary>
-          <div className="panel-flat absolute left-0 top-full z-30 mt-2 w-64 space-y-3 p-4 shadow-lg">
+          <div className="panel-flat absolute left-0 top-full z-30 mt-2 w-64 space-y-3 p-4 shadow-[var(--rim),var(--shadow-3)]">
             <label className="block text-xs text-ink-muted">
               Desde
               <input

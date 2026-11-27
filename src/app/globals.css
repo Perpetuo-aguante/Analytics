@@ -2,36 +2,58 @@
 
 /* ════════════════════════════════════════════════════════════════════
    PERPETUO ANALÍTICA — sistema visual
-   Marca: azul #0f52a0 sobre crema #f9f6f1, con manchas granuladas de azul
-   y rojo. Todo el "movimiento" es CSS y SVG: cero dependencias, cero WebGL.
+   Sale del sistema de diseño de Perpetuo (Brandbook 2026, Materia Prima
+   Estudio): fondo crema, tinta negra, azul como color principal, rojo y
+   lima como complementarios, bloques de color planos y los signos de
+   puntuación convertidos en personajes. Minimalista a propósito: mucho
+   aire, filetes finos, sin degradados. La única concesión es una sombra
+   muy suave en las tarjetas, para que los datos floten sobre el crema.
    ════════════════════════════════════════════════════════════════════ */
 
 :root {
-  /* Planos */
-  --bg: #f9f6f1;              /* crema de marca */
-  --surface: #fffdfa;         /* tarjetas, un paso por encima del fondo */
-  --surface-sunk: #f2ede4;    /* campos, celdas, rieles */
+  /* Paleta del brandbook (A1–A5) */
+  --azul: #074990;            /* A1 · principal · 8.3:1 sobre crema */
+  --rojo: #e2543b;            /* A2 · energía · como texto solo grande (3.5:1) */
+  --lima: #c3d73a;            /* A3 · presencia · solo fondo, texto negro encima */
+  --negro: #0d1114;           /* A4 · tinta */
+  --crema: #faf6f1;           /* A5 · fondo base */
 
-  /* Tinta — todos los valores de texto verificados sobre --bg:
-     ink 17.6:1 · secondary 7.4:1 · muted 4.9:1 (AA para texto normal) */
-  --ink: #12100e;
-  --ink-secondary: #55504a;
-  --ink-muted: #736b61;
+  /* Planos */
+  --bg: var(--crema);
+  --surface: #fffdfa;         /* tarjetas, un paso por encima del crema */
+  --surface-sunk: #f2ede5;    /* rieles de barras, celdas */
+
+  /* Tinta — verificadas sobre crema: ink 17.6:1 · secondary 6.6:1 · muted 4.8:1 */
+  --ink: var(--negro);
+  --ink-secondary: #55595e;   /* el "muted" del sistema de Perpetuo */
+  --ink-muted: #6a6e73;
 
   /* Cromo de chart: no es texto, no necesita 4.5:1 */
-  --line: #e4ddd2;            /* hairline, bordes */
-  --line-strong: #cfc5b5;     /* ejes, línea base */
-  --axis-ink: #8a8279;        /* etiquetas de eje */
+  --line: #e7e1d7;
+  --line-strong: #cfc8bc;
+  --axis-ink: #8b8f94;
 
-  /* Marca */
-  --blue: #0f52a0;
-  --blue-deep: #0b3d78;
-  --red: #d0301f;
-  --red-deep: #a92416;
-  --on-brand: #f9f6f1;        /* 7.1:1 sobre azul, 4.7:1 sobre rojo */
+  /* Marca en la app */
+  --blue: var(--azul);
+  --blue-deep: #05376e;       /* hover del azul */
+  /* El azul como SERIE de un chart: un paso apenas más claro que el de
+     marca, porque #074990 cae por debajo de la banda de luminosidad de la
+     paleta categórica (validate_palette.js). Solo para marcas de datos. */
+  --blue-data: #0a4f9c;
+  --red: var(--rojo);
+  --red-ink: #c0412b;         /* rojo para texto chico: 4.8:1 sobre crema */
+  --on-brand: var(--crema);   /* 8.3:1 sobre azul */
 
-  --radius: 14px;
-  --radius-lg: 22px;
+  --radius: 12px;
+  --radius-lg: 18px;
+
+  /* Elevación mínima: una sombra corta en reposo, una más larga al pasar el
+     cursor. Tinte del negro de marca, nunca gris neutro. */
+  --shadow-1: 0 1px 2px rgb(13 17 20 / 0.04), 0 4px 14px -6px rgb(13 17 20 / 0.08);
+  --shadow-2: 0 2px 4px rgb(13 17 20 / 0.04), 0 14px 32px -12px rgb(13 17 20 / 0.16);
+  --shadow-3: 0 4px 8px rgb(13 17 20 / 0.05), 0 18px 40px -14px rgb(13 17 20 / 0.22);
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @theme inline {
@@ -46,10 +68,20 @@
   --color-blue: var(--blue);
   --color-blue-deep: var(--blue-deep);
   --color-red: var(--red);
+  --color-red-ink: var(--red-ink);
+  --color-lima: var(--lima);
+  --color-azul: var(--azul);
+  --color-rojo: var(--rojo);
+  --color-negro: var(--negro);
+  --color-crema: var(--crema);
   --color-on-brand: var(--on-brand);
 
-  --font-display: var(--font-poppins), "Helvetica Neue", Arial, sans-serif;
-  --font-sans: var(--font-poppins), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  /* Títulos: Bricolage Grotesque, extra negra y un poco angosta — el mismo
+     trazo grueso y recortado del logotipo PERPETUO. Texto: Instrument Sans,
+     una grotesca con carácter (no la Helvetica de siempre). La marca no usa
+     serif, así que todo el carácter lo dan el peso y el ancho. */
+  --font-display: var(--font-bricolage), "Helvetica Neue", Arial, sans-serif;
+  --font-sans: var(--font-instrument), "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
@@ -60,6 +92,9 @@ html {
 }
 
 body {
+  /* Los lienzos de encabezado ocupan 100vw; clip corta el ancho de la barra
+     de scroll sin crear un contenedor de scroll (no rompe position: sticky). */
+  overflow-x: clip;
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font-sans);
@@ -70,7 +105,43 @@ h1,
 h2,
 h3 {
   font-family: var(--font-display);
-  letter-spacing: -0.02em;
+  font-variation-settings: "opsz" 32;
+  letter-spacing: -0.025em;
+}
+
+/* El título de sección: extra negro, angosto y apretado, como un afiche. */
+.display-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-stretch: 78%;
+  font-variation-settings: "opsz" 96, "wdth" 78;
+  line-height: 0.92;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+
+/* Cifras grandes (stat tiles): la misma letra de los títulos, en bold. */
+.display-number {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-variation-settings: "opsz" 48, "wdth" 85;
+  letter-spacing: -0.015em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Etiqueta en versalitas espaciadas para rótulos de tarjeta. */
+.eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--ink-secondary);
+}
+
+/* Subrayar con el cursor deja un bloque lima: el color de "presencia". */
+::selection {
+  background: var(--lima);
+  color: var(--negro);
 }
 
 /* Los números se leen en columna: cifras de ancho fijo para que las unidades
@@ -79,141 +150,225 @@ h3 {
   font-variant-numeric: tabular-nums;
 }
 
-/* ── Fondo granulado ──────────────────────────────────────────────────
-   Manchas de marca ancladas a los bordes, con el centro limpio: es la
-   composición de las referencias (marco de color, campo de lectura vacío) y
-   además es lo que deja el texto legible sin bajarle el color a las manchas.
-   Tres capas fijas: manchas azules, manchas rojas por detrás, y grano. El
-   grano no se anima nunca — es lo que da el borde "impreso", y animarlo
-   costaría un repintado de pantalla completa por frame. */
+/* ── Encabezado ───────────────────────────────────────────────────────
+   Como en el brandbook: logotipo a la izquierda, secciones a la derecha y
+   un filete azul de 2px a todo el ancho debajo. */
 
-.backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  overflow: hidden;
-  pointer-events: none;
-  background: var(--bg);
+.site-header {
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 2px solid var(--azul);
 }
 
-.backdrop__blobs {
-  position: absolute;
-  /* Se desborda a propósito: las manchas entran y salen del encuadre
-     mientras derivan, como en las referencias. */
-  inset: -8%;
-  filter: blur(32px);
-  will-change: transform;
-  animation: blob-drift 54s ease-in-out infinite alternate;
+/* El punto: la sección activa lleva un punto azul debajo, el personaje más
+   simple de la marca. */
+.nav-link {
+  position: relative;
+  color: var(--ink-secondary);
+  transition: color 0.15s ease;
 }
 
-.backdrop__blobs::before,
-.backdrop__blobs::after {
+.nav-link:hover {
+  color: var(--ink);
+}
+
+.nav-link[aria-current="page"] {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.nav-link[aria-current="page"]::after {
   content: "";
   position: absolute;
-  inset: 0;
+  left: 50%;
+  bottom: -2px;
+  width: 6px;
+  height: 6px;
+  margin-left: -3px;
+  border-radius: 999px;
+  background: var(--azul);
 }
 
-.backdrop__blobs::before {
-  opacity: 1;
-  background:
-    radial-gradient(22% 24% at 4% 12%, var(--blue) 0%, var(--blue) 42%, transparent 76%),
-    radial-gradient(20% 20% at 96% 6%, var(--blue) 0%, var(--blue) 42%, transparent 76%),
-    radial-gradient(18% 24% at 97% 58%, var(--blue) 0%, var(--blue) 42%, transparent 76%),
-    radial-gradient(22% 20% at 18% 94%, var(--blue) 0%, var(--blue) 42%, transparent 76%),
-    radial-gradient(18% 18% at 80% 97%, var(--blue) 0%, var(--blue) 42%, transparent 76%);
-}
-
-.backdrop__blobs::after {
-  /* El rojo va por detrás del azul en las referencias: halo, no relleno.
-     Por eso sus manchas son más grandes y están ligeramente desfasadas. */
-  opacity: 0.9;
-  background:
-    radial-gradient(28% 30% at 1% 18%, var(--red) 0%, var(--red) 38%, transparent 74%),
-    radial-gradient(26% 26% at 99% 1%, var(--red) 0%, var(--red) 38%, transparent 74%),
-    radial-gradient(24% 30% at 100% 54%, var(--red) 0%, var(--red) 38%, transparent 74%),
-    radial-gradient(28% 26% at 12% 99%, var(--red) 0%, var(--red) 38%, transparent 74%),
-    radial-gradient(24% 24% at 86% 93%, var(--red) 0%, var(--red) 38%, transparent 74%);
-  animation: blob-drift-alt 67s ease-in-out infinite alternate;
-}
-
-@keyframes blob-drift {
-  from { transform: translate3d(-2%, -1.5%, 0) scale(1); }
-  to   { transform: translate3d(3%, 2%, 0) scale(1.1); }
-}
-
-@keyframes blob-drift-alt {
-  from { transform: translate3d(2.5%, 1.5%, 0) scale(1.08) rotate(-3deg); }
-  to   { transform: translate3d(-3%, -2%, 0) scale(1) rotate(4deg); }
-}
-
-/* El velo despeja la COLUMNA de lectura, no un círculo: es una banda
-   vertical opaca del ancho del contenido, con los márgenes izquierdo y
-   derecho transparentes. Así el color queda enmarcando la página a todo
-   pulmón y el texto nunca cae encima de una mancha saturada. */
-.backdrop__veil {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    to right,
-    transparent 0%,
-    transparent 5%,
-    color-mix(in srgb, var(--bg) 60%, transparent) 11%,
-    var(--bg) 19%,
-    var(--bg) 81%,
-    color-mix(in srgb, var(--bg) 60%, transparent) 89%,
-    transparent 95%,
-    transparent 100%
-  );
-}
-
-/* Por debajo de la columna de contenido (~1280px con sus márgenes) ya no hay
-   márgenes que sacrificar: el velo pasa a cubrir todo y las manchas quedan
-   como un tinte apenas perceptible. */
-@media (max-width: 1280px) {
-  .backdrop__veil {
-    background: linear-gradient(
-      to right,
-      color-mix(in srgb, var(--bg) 80%, transparent) 0%,
-      var(--bg) 12%,
-      var(--bg) 88%,
-      color-mix(in srgb, var(--bg) 80%, transparent) 100%
-    );
-  }
-}
-
-/* Grano: feTurbulence embebido como data URI. Es lo que rompe el degradado
-   limpio en el moteado de las referencias. */
-.backdrop__grain {
-  position: absolute;
-  inset: 0;
-  opacity: 0.5;
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .backdrop__blobs,
-  .backdrop__blobs::after {
-    animation: none;
-  }
-}
-
-/* ── Superficies ──────────────────────────────────────────────────────── */
+/* ── Superficies ──────────────────────────────────────────────────────
+   Tarjeta plana sobre crema con un filete y una sombra corta: flota, pero
+   sin vidrio ni brillos. Al pasar el cursor la sombra se alarga. */
 
 .panel {
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  position: relative;
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
-  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-1);
+  transition: box-shadow 0.25s var(--ease-out), transform 0.25s var(--ease-out);
+}
+
+.panel:hover {
+  box-shadow: var(--shadow-2);
+}
+
+/* Tarjetas chicas (stat tiles): además suben 2px. Los paneles con charts
+   no se mueven: un chart que salta justo cuando lo vas a leer molesta. */
+.panel-lift:hover {
+  transform: translateY(-2px);
 }
 
 .panel-flat {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
+  box-shadow: var(--shadow-1);
 }
 
-/* ── Controles ────────────────────────────────────────────────────────── */
+/* ── Charts ───────────────────────────────────────────────────────── */
+
+/* Tooltip común a todos los charts (Recharts y SVG propios). */
+.chart-tooltip {
+  pointer-events: none;
+  min-width: 150px;
+  max-width: 260px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow-3);
+  padding: 0.6rem 0.8rem;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--ink-secondary);
+  animation: tooltip-in 0.14s var(--ease-out) both;
+}
+
+.chart-tooltip__title {
+  margin-bottom: 0.35rem;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+/* Clave de serie en el tooltip: un trazo corto, no un cuadro. */
+.chart-tooltip__key {
+  display: inline-block;
+  width: 12px;
+  height: 3px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  transform: translateY(-2px);
+}
+
+@keyframes tooltip-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Recharts dibuja un rectángulo de foco alrededor del svg al hacer clic;
+   el foco visible de teclado ya lo da la regla general de más abajo. */
+.recharts-wrapper:focus,
+.recharts-surface:focus,
+.recharts-wrapper *:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Puntos del scatter: crecen bajo el cursor para confirmar a cuál apuntas. */
+.scatter-point {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 0.16s var(--ease-out), opacity 0.2s ease;
+}
+
+.scatter-point:hover {
+  transform: scale(1.4);
+}
+
+/* El "Ver como tabla" de cada chart: un disclosure discreto con chevron. */
+.table-toggle > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  list-style: none;
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem 0.25rem 0.55rem;
+  color: var(--ink-muted);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.table-toggle > summary::-webkit-details-marker { display: none; }
+
+.table-toggle > summary::before {
+  content: "";
+  width: 0.4rem;
+  height: 0.4rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.2s var(--ease-out);
+}
+
+.table-toggle[open] > summary::before { transform: rotate(45deg); }
+
+.table-toggle > summary:hover {
+  background: var(--surface-sunk);
+  color: var(--ink);
+}
+
+/* Barras horizontales: crecen desde el eje al entrar y la fila entera
+   reacciona al cursor. */
+.bar-row {
+  border-radius: 8px;
+  margin-inline: -0.5rem;
+  padding: 0.2rem 0.5rem;
+  transition: background-color 0.15s ease;
+}
+
+.bar-row:hover {
+  background: var(--surface-sunk);
+}
+
+.bar-fill {
+  transform-origin: left center;
+  animation: bar-grow 0.7s var(--ease-out) both;
+}
+
+.bar-fill[data-dir="left"] { transform-origin: right center; }
+
+@keyframes bar-grow {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+/* Tablas: la fila bajo el cursor se marca, para no perder el renglón. */
+tbody tr {
+  transition: background-color 0.12s ease;
+}
+
+tbody tr:hover {
+  background: color-mix(in srgb, var(--surface-sunk) 70%, transparent);
+}
+
+/* ── Personajes ───────────────────────────────────────────────────────
+   Punto, interrogación y exclamación acompañan al contenido en el margen,
+   nunca encima. Entran con un pequeño balanceo y se quedan quietos. */
+
+.personaje {
+  animation: personaje-in 0.7s var(--ease-out) both;
+  animation-delay: 0.15s;
+}
+
+/* El disco crema donde se para un personaje sobre un lienzo oscuro. */
+.personaje-disc {
+  animation: disc-in 0.6s var(--ease-out) both;
+}
+
+@keyframes disc-in {
+  from { opacity: 0; transform: scale(0.85); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes personaje-in {
+  from { opacity: 0; transform: translateY(8px) rotate(-4deg); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ── Controles ────────────────────────────────────────────────────── */
 
 .btn-primary {
   display: inline-flex;
@@ -223,9 +378,9 @@ h3 {
   border-radius: 999px;
   background: var(--blue);
   color: var(--on-brand);
-  font-weight: 600;
+  font-weight: 500;
   padding: 0.6rem 1.4rem;
-  transition: background-color 0.15s ease, transform 0.15s ease;
+  transition: background-color 0.15s ease, transform 0.15s var(--ease-out);
 }
 
 .btn-primary:hover {
@@ -245,25 +400,31 @@ h3 {
   gap: 0.4rem;
   border-radius: 999px;
   border: 1px solid var(--line-strong);
-  background: color-mix(in srgb, var(--surface) 75%, transparent);
+  background: var(--surface);
   padding: 0.4rem 0.85rem;
   font-size: 0.8125rem;
-  font-weight: 500;
+  font-weight: 400;
   color: var(--ink-secondary);
   white-space: nowrap;
-  transition: border-color 0.12s ease, background-color 0.12s ease, color 0.12s ease;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease, opacity 0.2s ease,
+    transform 0.15s var(--ease-out);
 }
 
 .chip:hover {
-  border-color: var(--blue);
+  border-color: var(--ink);
   color: var(--ink);
+}
+
+.chip:active {
+  transform: scale(0.97);
 }
 
 .chip[data-active="true"] {
   background: var(--blue);
   border-color: var(--blue);
   color: var(--on-brand);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 /* Variante para los chips de tipo de post: cuando están activos toman el
@@ -289,15 +450,17 @@ h3 {
 .field {
   border-radius: 999px;
   border: 1px solid var(--line-strong);
-  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  background: var(--surface);
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
   color: var(--ink);
   outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.2s ease;
 }
 
 .field:focus {
   border-color: var(--blue);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 14%, transparent);
 }
 
 /* Foco visible y consistente en todo lo interactivo. */
@@ -313,9 +476,8 @@ summary:focus-visible,
 }
 
 /* ── Movimiento de entrada ────────────────────────────────────────────
-   La "experiencia divertida al navegar": cada sección entra escalonada en
-   vez de aparecer de golpe. Es puramente decorativo — el contenido ya está
-   en el HTML del servidor, así que no hay nada que esperar. */
+   Cada sección entra escalonada en vez de aparecer de golpe. Es puramente
+   decorativo — el contenido ya está en el HTML del servidor. */
 
 @keyframes rise {
   from { opacity: 0; transform: translateY(10px); }
@@ -323,7 +485,7 @@ summary:focus-visible,
 }
 
 .rise {
-  animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: rise 0.5s var(--ease-out) both;
 }
 
 .rise-1 { animation-delay: 0.04s; }
@@ -332,8 +494,18 @@ summary:focus-visible,
 .rise-4 { animation-delay: 0.19s; }
 
 @media (prefers-reduced-motion: reduce) {
-  .rise {
+  .rise,
+  .bar-fill,
+  .chart-tooltip,
+  .personaje,
+  .personaje-disc {
     animation: none;
   }
+  .panel,
+  .chip,
+  .btn-primary {
+    transition: none;
+  }
+  .panel-lift:hover { transform: none; }
   html { scroll-behavior: auto; }
 }

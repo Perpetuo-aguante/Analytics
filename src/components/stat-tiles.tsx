@@ -5,17 +5,22 @@
 // nombre necesita menos cuerpo y poder partirse: a 3xl, "Sudamérica" no
 // entra en la tarjeta de un teléfono y empujaba la página entera a scroll
 // horizontal. De ahí la variante "text".
-export type StatTile = { label: string; value: string; hint?: string; variant?: "number" | "text" };
+export type StatTile = {
+  label: string;
+  value: string;
+  hint?: string;
+  variant?: "number" | "text";
+};
 
 export function StatTiles({ tiles }: { tiles: StatTile[] }) {
   return (
     <section className={`mb-10 grid grid-cols-2 gap-3 ${tiles.length === 5 ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
       {tiles.map((tile) => (
-        <div key={tile.label} className="panel p-4">
-          <p className="text-xs text-ink-muted">{tile.label}</p>
+        <div key={tile.label} className="panel panel-lift p-4 sm:p-5">
+          <p className="eyebrow">{tile.label}</p>
           <p
-            className={`mt-1.5 font-display font-semibold ${
-              tile.variant === "text" ? "break-words text-xl" : "tnum text-3xl"
+            className={`mt-3 ${
+              tile.variant === "text" ? "display-number break-words text-2xl" : "display-number text-4xl sm:text-[2.75rem]"
             }`}
           >
             {tile.value}

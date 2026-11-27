@@ -1,17 +1,44 @@
 "use client";
 
-// Serie temporal de varias líneas con leyenda conmutable, crosshair con
-// tooltip y vista de tabla. Es el mismo chart que SectionTimelineChart, pero
-// con las series como dato (clave, etiqueta y color vienen de quien lo usa)
-// en vez de atadas a los siete tipos de post: lo usan los charts de países y
-// regiones de /suscriptores/geografia.
+// Serie temporal de varias líneas (Recharts) con leyenda conmutable,
+// crosshair con tooltip, zoom con brush y vista de tabla. Las series son
+// dato: clave, etiqueta y color vienen de quien lo usa. SectionTimelineChart
+// es este mismo chart con las series atadas a los tipos de post.
 //
 // La etiqueta al final de cada línea y el "Ver como tabla" no son adorno:
 // tres colores de la paleta quedan por debajo de 3:1 contra el fondo, y ese
 // WARN obliga a que el valor nunca dependa de distinguir el color.
 
-import { useId, useMemo, useRef, useState } from "react";
-import { niceTicks } from "@/lib/chart-scale";
+import { useMemo, useState } from "react";
+import {
+  Brush,
+  CartesianGrid,
+  Line,
+  LineChart as RLineChart,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import {
+  CROSSHAIR,
+  EmptyChart,
+  EndLabels,
+  GRID_PROPS,
+  LegendChips,
+  NARROW_CHART,
+  TableToggle,
+  TooltipCard,
+  X_AXIS_PROPS,
+  Y_AXIS_PROPS,
+  formatAxisValue,
+  formatChartValue,
+  useReducedMotion,
+  useElementWidth,
+  useSeriesToggle,
+  type EndLabel,
+  type LegendItem,
+  type ChartTooltipProps,
+} from "./charts/chart-kit";
 
 export type LineSeries = {
   key: string;
@@ -20,17 +47,18 @@ export type LineSeries = {
   points: { date: string; value: number | null }[];
 };
 
-// Cuántas etiquetas de fecha caben abajo sin pisarse. Con dos años de meses,
-// mostrar solo la primera y la última deja el eje mudo en el medio.
-const MAX_DATE_TICKS = 5;
+type Row = { date: string } & Record<string, number | null | string>;
+
+// A partir de cuántas fechas aparece el brush para hacer zoom en un tramo.
+const BRUSH_THRESHOLD = 12;
 
 export function MultiLineChart({
   series,
   title,
   percent = false,
   keepEmptyDates = false,
-  width = 640,
   height = 300,
+  legend,
 }: {
   series: LineSeries[];
   title: string;
@@ -39,13 +67,16 @@ export function MultiLineChart({
   // que la distancia en el eje sea proporcional al tiempo (meses sin datos
   // incluidos). Por defecto se omiten.
   keepEmptyDates?: boolean;
-  width?: number;
   height?: number;
+  // Muestras de leyenda propias (ej. la forma del tipo de post).
+  legend?: LegendItem[];
+  // Compatibilidad con la versión SVG: el ancho ahora es el del contenedor.
+  width?: number;
 }) {
-  const titleId = useId();
-  const svgRef = useRef<SVGSVGElement>(null);
-  const [hidden, setHidden] = useState<Set<string>>(() => new Set());
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const { hidden, toggle, focused, setFocused } = useSeriesToggle();
+  const reduced = useReducedMotion();
+  const { ref: containerRef, width: containerWidth } = useElementWidth<HTMLDivElement>();
+  const narrow = containerWidth != null && containerWidth < NARROW_CHART;
 
   const allDates = useMemo(() => {
     const set = new Set<string>();
@@ -53,257 +84,160 @@ export function MultiLineChart({
     return Array.from(set).sort();
   }, [series, keepEmptyDates]);
 
-  const padding = { top: 16, right: 124, bottom: 28, left: 52 };
-  const innerWidth = width - padding.left - padding.right;
-  const innerHeight = height - padding.top - padding.bottom;
-  const stepX = allDates.length > 1 ? innerWidth / (allDates.length - 1) : 0;
-  const xForDate = (date: string) => padding.left + allDates.indexOf(date) * stepX;
+  const rows = useMemo<Row[]>(() => {
+    const byDate = new Map<string, Row>(allDates.map((date) => [date, { date } as Row]));
+    for (const s of series) {
+      for (const p of s.points) {
+        const row = byDate.get(p.date);
+        if (row) row[s.key] = p.value;
+      }
+    }
+    return allDates.map((d) => byDate.get(d)!);
+  }, [series, allDates]);
+
+  const [range, setRange] = useState<{ start: number; end: number } | null>(null);
+  const start = range?.start ?? 0;
+  const end = range?.end ?? rows.length - 1;
 
   const visibleSeries = series.filter((s) => !hidden.has(s.key));
-  const allValues = visibleSeries.flatMap((s) => s.points.map((p) => p.value).filter((v): v is number => v != null));
-  const dataMax = allValues.length > 0 ? Math.max(...allValues) : 0;
-  const yTicks = niceTicks(0, dataMax > 0 ? dataMax : 1, 4);
-  const yMax = yTicks[yTicks.length - 1];
-  const yForValue = (v: number) => padding.top + innerHeight - (v / yMax) * innerHeight;
 
-  const formatValue = (v: number) => (percent ? `${(v * 100).toFixed(1)}%` : Math.round(v).toLocaleString("es"));
-
-  const dateTicks = useMemo(() => {
-    if (allDates.length <= MAX_DATE_TICKS) return allDates.map((_, i) => i);
-    const step = (allDates.length - 1) / (MAX_DATE_TICKS - 1);
-    return Array.from({ length: MAX_DATE_TICKS }, (_, i) => Math.round(i * step));
-  }, [allDates]);
-
-  function toggle(key: string) {
-    setHidden((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  }
-
-  function handleMove(e: React.MouseEvent<SVGRectElement>) {
-    if (allDates.length === 0 || !svgRef.current) return;
-    const rect = svgRef.current.getBoundingClientRect();
-    const relX = ((e.clientX - rect.left) / rect.width) * width;
-    const idx = stepX > 0 ? Math.round((relX - padding.left) / stepX) : 0;
-    setHoverIndex(Math.min(allDates.length - 1, Math.max(0, idx)));
-  }
-
-  // Si dos líneas terminan muy cerca, sus etiquetas del extremo derecho se
-  // separan en vertical para que ninguna quede ilegible debajo de la otra.
-  const endLabels = useMemo(() => {
-    const items = visibleSeries
-      .map((s) => {
-        const last = [...s.points].reverse().find((p) => p.value != null);
-        if (!last || last.value == null) return null;
-        return { key: s.key, label: s.label, color: s.color, y: yForValue(last.value) };
-      })
-      .filter((i): i is { key: string; label: string; color: string; y: number } => i != null)
-      .sort((a, b) => a.y - b.y);
-
-    for (let i = 1; i < items.length; i++) {
-      const minGap = 13;
-      if (items[i].y - items[i - 1].y < minGap) items[i].y = items[i - 1].y + minGap;
+  // Las etiquetas del extremo derecho siguen al último valor DENTRO del
+  // tramo visible: con el brush recortado, la etiqueta no puede quedar a la
+  // altura de un punto que ya no está en pantalla.
+  const endLabels = useMemo<EndLabel[]>(() => {
+    const out: EndLabel[] = [];
+    for (const s of visibleSeries) {
+      for (let i = Math.min(end, rows.length - 1); i >= start; i--) {
+        const v = rows[i]?.[s.key];
+        if (typeof v === "number") {
+          out.push({ key: s.key, label: s.label, color: s.color, value: v });
+          break;
+        }
+      }
     }
-    return items;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleSeries, yMax]);
+    return out;
+  }, [visibleSeries, rows, start, end]);
 
-  if (allDates.length === 0) return <p className="text-sm text-ink-muted">Sin datos todavía.</p>;
+  if (allDates.length === 0) return <EmptyChart />;
+
+  const showBrush = allDates.length > BRUSH_THRESHOLD;
+
+  const renderTooltip = ({ active, payload, label }: ChartTooltipProps) => {
+    if (!active || !payload?.length) return null;
+    const row = payload[0].payload as Row;
+    return (
+      <TooltipCard
+        title={String(label)}
+        rows={visibleSeries
+          .map((s) => ({ s, v: row[s.key] }))
+          .sort((a, b) => (typeof b.v === "number" ? b.v : -Infinity) - (typeof a.v === "number" ? a.v : -Infinity))
+          .map(({ s, v }) => ({
+            key: s.key,
+            label: s.label,
+            color: s.color,
+            value: typeof v === "number" ? formatChartValue(v, percent) : "—",
+          }))}
+      />
+    );
+  };
 
   return (
-    <div className="w-full">
-      <div className="relative">
-        <svg
-          ref={svgRef}
-          viewBox={`0 0 ${width} ${height}`}
-          className="w-full text-ink"
-          role="img"
-          aria-labelledby={titleId}
+    <div className="w-full" ref={containerRef}>
+      <figure aria-label={title}>
+        <RLineChart
+          data={rows}
+          responsive
+          style={{ width: "100%", height: height + (showBrush ? 36 : 0) }}
+          margin={{ top: 12, right: narrow ? 8 : 112, bottom: 4, left: 0 }}
+          accessibilityLayer
         >
-          <title id={titleId}>{title}</title>
-
-          {yTicks.map((t) => (
-            <g key={t}>
-              <line
-                x1={padding.left}
-                y1={yForValue(t)}
-                x2={width - padding.right}
-                y2={yForValue(t)}
-                stroke="var(--line)"
-              />
-              <text x={padding.left - 8} y={yForValue(t)} dy={3} fontSize={11} fill="var(--axis-ink)" textAnchor="end">
-                {formatValue(t)}
-              </text>
-            </g>
-          ))}
-
+          <title>{title}</title>
+          <CartesianGrid {...GRID_PROPS} />
+          <XAxis dataKey="date" {...X_AXIS_PROPS} minTickGap={28} />
+          <YAxis {...Y_AXIS_PROPS} width={52} tickFormatter={(v: number) => formatAxisValue(v, percent)} />
+          <Tooltip content={renderTooltip} cursor={CROSSHAIR} isAnimationActive={false} />
           {visibleSeries.map((s) => {
-            const coords = s.points
-              .filter((p): p is { date: string; value: number } => p.value != null)
-              .map((p) => ({ x: xForDate(p.date), y: yForValue(p.value) }));
-            // Con keepEmptyDates, una fecha sin valor corta la línea: unir los
-            // dos lados inventaría valores para meses que no los tienen.
-            let gap = true;
-            const path = keepEmptyDates
-              ? s.points
-                  .map((p) => {
-                    if (p.value == null) {
-                      gap = true;
-                      return "";
-                    }
-                    const cmd = `${gap ? "M" : "L"} ${xForDate(p.date).toFixed(1)} ${yForValue(p.value).toFixed(1)}`;
-                    gap = false;
-                    return cmd;
-                  })
-                  .filter(Boolean)
-                  .join(" ")
-              : coords.map((c, i) => `${i === 0 ? "M" : "L"} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`).join(" ");
+            const dim = focused != null && focused !== s.key;
             return (
-              <g key={s.key}>
-                <path d={path} fill="none" stroke={s.color} strokeWidth={2} strokeLinejoin="round" />
-                {/* Con huecos, un mes aislado no tiene vecinos con quien unirse:
-                    cada valor lleva su punto para que no desaparezca. */}
-                {keepEmptyDates &&
-                  coords.map((c, i) => <circle key={i} cx={c.x} cy={c.y} r={3} fill={s.color} />)}
-                {/* Con muchos meses en el eje, un punto por mes emborrona la
-                    línea: solo se marca el último valor de cada serie. */}
-                {coords.length > 0 && (
-                  <circle
-                    cx={coords[coords.length - 1].x}
-                    cy={coords[coords.length - 1].y}
-                    r={4}
-                    fill={s.color}
-                    stroke="var(--surface)"
-                    strokeWidth={2}
-                  />
-                )}
-              </g>
+              <Line
+                key={s.key}
+                dataKey={s.key}
+                name={s.label}
+                type="monotone"
+                stroke={s.color}
+                strokeWidth={focused === s.key ? 3 : 2}
+                strokeOpacity={dim ? 0.15 : 1}
+                strokeLinecap="round"
+                // Sin keepEmptyDates, una fecha sin valor para ESTA serie no la
+                // corta (otra serie sí tenía dato ahí). Con keepEmptyDates, el
+                // hueco es real y unir los lados inventaría valores.
+                connectNulls={!keepEmptyDates}
+                dot={keepEmptyDates ? { r: 2.5, fill: s.color, strokeWidth: 0, fillOpacity: dim ? 0.15 : 1 } : false}
+                activeDot={{ r: 5, fill: s.color, stroke: "var(--surface)", strokeWidth: 2 }}
+                isAnimationActive={!reduced}
+                animationDuration={900}
+                animationEasing="ease-out"
+              />
             );
           })}
-
-          {endLabels.map((item) => (
-            <text
-              key={item.key}
-              x={width - padding.right + 8}
-              y={item.y}
-              dy={3}
-              fontSize={11}
-              fill="var(--ink-secondary)"
-            >
-              <tspan fill={item.color}>● </tspan>
-              {item.label}
-            </text>
-          ))}
-
-          {hoverIndex != null && allDates[hoverIndex] && (
-            <line
-              x1={padding.left + hoverIndex * stepX}
-              y1={padding.top}
-              x2={padding.left + hoverIndex * stepX}
-              y2={height - padding.bottom}
-              stroke="var(--line-strong)"
+          {!narrow && <EndLabels items={endLabels} dimmed={(key) => focused != null && focused !== key} />}
+          {showBrush && (
+            <Brush
+              dataKey="date"
+              height={24}
+              travellerWidth={8}
+              stroke="var(--axis-ink)"
+              fill="var(--surface)"
+              tickFormatter={() => ""}
+              onChange={(r) => {
+                if (r.startIndex != null && r.endIndex != null) setRange({ start: r.startIndex, end: r.endIndex });
+              }}
             />
           )}
-
-          <rect
-            x={padding.left}
-            y={padding.top}
-            width={innerWidth}
-            height={innerHeight}
-            fill="transparent"
-            onMouseMove={handleMove}
-            onMouseLeave={() => setHoverIndex(null)}
-          />
-
-          {dateTicks.map((index) => (
-            <text
-              key={allDates[index]}
-              x={padding.left + index * stepX}
-              y={height - 6}
-              fontSize={11}
-              fill="var(--axis-ink)"
-              textAnchor={index === 0 ? "start" : index === allDates.length - 1 ? "end" : "middle"}
-            >
-              {allDates[index]}
-            </text>
-          ))}
-        </svg>
-
-        {hoverIndex != null && allDates[hoverIndex] && (
-          <div
-            className="pointer-events-none absolute top-2 z-10 -translate-x-1/2 rounded-xl border border-line bg-surface px-3 py-2 text-xs shadow-lg"
-            style={{ left: `${(xForDate(allDates[hoverIndex]) / width) * 100}%` }}
-          >
-            <p className="font-medium">{allDates[hoverIndex]}</p>
-            {visibleSeries.map((s) => {
-              const point = s.points.find((p) => p.date === allDates[hoverIndex]);
-              return (
-                <p key={s.key} className="tnum mt-0.5 flex items-baseline gap-1.5 text-ink-muted">
-                  <span aria-hidden style={{ color: s.color }}>
-                    ●
-                  </span>
-                  <span className="font-semibold text-ink">
-                    {point?.value != null ? formatValue(point.value) : "—"}
-                  </span>
-                  <span>{s.label}</span>
-                </p>
-              );
-            })}
-          </div>
+        </RLineChart>
+        {showBrush && (
+          <figcaption className="mt-1 text-xs text-ink-muted">
+            Arrastra los extremos de la barra de abajo para hacer zoom en un tramo.
+          </figcaption>
         )}
-      </div>
+      </figure>
 
-      <ul className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm">
-        {series.map((s) => (
-          <li key={s.key}>
-            <button
-              type="button"
-              onClick={() => toggle(s.key)}
-              aria-pressed={!hidden.has(s.key)}
-              className={`chip ${hidden.has(s.key) ? "opacity-40" : ""}`}
-            >
-              <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />
-              {s.label}
-            </button>
-          </li>
-        ))}
-      </ul>
+      <LegendChips
+        items={legend ?? series.map((s) => ({ key: s.key, label: s.label, color: s.color }))}
+        hidden={hidden}
+        onToggle={toggle}
+        onFocus={setFocused}
+      />
 
-      <details className="mt-3 text-sm">
-        <summary className="cursor-pointer text-ink-muted hover:text-ink">Ver como tabla</summary>
-        <div className="mt-3 max-h-96 overflow-auto">
-          <table className="w-full min-w-[480px] border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-line text-left text-ink-muted">
-                <th className="px-2 py-2 font-medium">Mes</th>
-                {series.map((s) => (
-                  <th key={s.key} className="px-2 py-2 font-medium">
-                    {s.label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {allDates.map((date) => (
-                <tr key={date} className="border-b border-line/60">
-                  <td className="px-2 py-2">{date}</td>
-                  {series.map((s) => {
-                    const point = s.points.find((p) => p.date === date);
-                    return (
-                      <td key={s.key} className="tnum px-2 py-2">
-                        {point?.value != null ? formatValue(point.value) : "—"}
-                      </td>
-                    );
-                  })}
-                </tr>
+      <TableToggle>
+        <table className="w-full min-w-[480px] border-collapse text-sm">
+          <thead className="sticky top-0 bg-surface">
+            <tr className="border-b border-line text-left text-ink-muted">
+              <th className="px-3 py-2 font-medium">Fecha</th>
+              {series.map((s) => (
+                <th key={s.key} className="px-3 py-2 font-medium">
+                  {s.label}
+                </th>
               ))}
-            </tbody>
-          </table>
-        </div>
-      </details>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.date} className="border-b border-line/60">
+                <td className="px-3 py-2">{row.date}</td>
+                {series.map((s) => {
+                  const v = row[s.key];
+                  return (
+                    <td key={s.key} className="tnum px-3 py-2">
+                      {typeof v === "number" ? formatChartValue(v, percent) : "—"}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </TableToggle>
     </div>
   );
 }

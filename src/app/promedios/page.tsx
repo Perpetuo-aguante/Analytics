@@ -31,6 +31,8 @@ export default async function PromediosPage({ searchParams }: { searchParams: Pr
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">
       <PageHeader
+        canvas="lima"
+        personaje="interrogacion-libreta"
         title="Promedios"
         description="El promedio del recorte y su evolución histórica, suavizada con una media móvil de 3 cargas semanales para que el ruido de una semana suelta no se lea como una tendencia."
         scope={describeFilters(filters)}
@@ -59,7 +61,7 @@ export default async function PromediosPage({ searchParams }: { searchParams: Pr
       <section className="rise rise-2 grid gap-4 lg:grid-cols-2">
         {charts.map((chart) => (
           <div key={chart.label} className="panel p-5">
-            <h2 className="mb-1 font-display text-base font-semibold">{chart.label}</h2>
+            <h2 className="mb-1 font-display text-lg font-bold">{chart.label}</h2>
             <p className="mb-4 text-xs text-ink-muted">Media móvil de 3 cargas</p>
             {chart.points.some((p) => p.value != null) ? (
               <LineChart points={chart.points} percent={chart.percent} height={170} />

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { getCategories } from "@/lib/categories";
 import { getCompassCorpus } from "@/lib/compass";
@@ -18,16 +17,14 @@ export default async function CompararPage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">
-      <Link href="/textos" className="text-sm text-ink-muted hover:underline">
-        ← Compass editorial
-      </Link>
-      <div className="mt-4">
-        <PageHeader
+      <PageHeader
+        back={{ href: "/textos", label: "Compass editorial" }}
+        canvas="lima"
+        personaje="interrogacion-libreta"
           title="Comparar un texto nuevo"
           description="Pega un borrador (o sube su .txt) y mira a qué textos de Perpetuo se parece por vocabulario y dónde caería en el compass, estimado a partir de esos vecinos. Es instantáneo, no usa LLM y no se guarda nada."
           scope={`${rows.length.toLocaleString("es")} posts con lectura para comparar`}
         />
-      </div>
       <CompareForm points={points} categories={categories} />
     </main>
   );

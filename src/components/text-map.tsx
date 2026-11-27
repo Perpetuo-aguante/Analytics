@@ -238,7 +238,7 @@ export function TextMap({
 
         {tooltip && (
           <div
-            className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full rounded-xl border border-line bg-surface px-3 py-2 text-xs shadow-lg"
+            className="chart-tooltip absolute z-10 -translate-x-1/2 -translate-y-full"
             style={{
               left: `${(scaleX(tooltip.x) / width) * 100}%`,
               top: `${(scaleY(tooltip.y) / height) * 100}%`,
@@ -289,7 +289,7 @@ export function TextMap({
         )}
       </ul>
 
-      <details className="mt-3 text-sm">
+      <details className="table-toggle mt-3 text-sm">
         <summary className="cursor-pointer text-ink-muted hover:text-ink">Ver como tabla</summary>
         <div className="mt-3 overflow-x-auto">
           <table className="w-full min-w-[480px] border-collapse text-sm">

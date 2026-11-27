@@ -58,7 +58,7 @@ export default async function SubscriberDetailPage({ params }: { params: Promise
         ← Volver a la lista
       </Link>
 
-      <h1 className="mt-4 font-display text-3xl font-semibold">{subscriber.name || subscriber.email}</h1>
+      <h1 className="mt-4 display-title text-4xl sm:text-5xl">{subscriber.name || subscriber.email}</h1>
       {subscriber.name && <p className="mt-1 text-sm text-ink-muted">{subscriber.email}</p>}
       <p className="mt-2 text-sm text-ink-muted">
         {subscriber.type ?? "—"} · {subscriber.country || "sin país"}
@@ -97,7 +97,7 @@ export default async function SubscriberDetailPage({ params }: { params: Promise
         {tiles.map((tile) => (
           <div key={tile.label} className="panel p-4">
             <p className="text-xs text-ink-muted">{tile.label}</p>
-            <p className="mt-1 font-display text-xl font-semibold">{tile.value}</p>
+            <p className="mt-1 font-display text-2xl font-bold">{tile.value}</p>
             {tile.detail && <p className="mt-0.5 text-xs text-ink-muted">{tile.detail}</p>}
           </div>
         ))}

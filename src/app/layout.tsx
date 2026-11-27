@@ -1,16 +1,24 @@
 import type { Metadata } from "next";
-import { Poppins } from "next/font/google";
+import { Bricolage_Grotesque, Instrument_Sans } from "next/font/google";
 import "./globals.css";
 import { Nav } from "@/components/nav";
-import { Backdrop } from "@/components/backdrop";
 
-// Poppins es toda la voz tipográfica de la app: geométrica y de peso alto en
-// los títulos, regular en el cuerpo. Los números usan la mono del sistema
-// (--font-mono) para que las columnas alineen sin descargar otra fuente.
-const poppins = Poppins({
+// Bricolage Grotesque para títulos y cifras (variable: peso, ancho y tamaño
+// óptico, para poder angostarla en los titulares grandes) e Instrument Sans
+// para el texto. Ver --font-display / --font-sans en globals.css.
+const bricolage = Bricolage_Grotesque({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-poppins",
+  weight: "variable",
+  axes: ["opsz", "wdth"],
+  variable: "--font-bricolage",
+  display: "swap",
+});
+
+const instrument = Instrument_Sans({
+  subsets: ["latin"],
+  weight: "variable",
+  axes: ["wdth"],
+  variable: "--font-instrument",
   display: "swap",
 });
 
@@ -21,9 +29,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="es" className={`h-full ${poppins.variable}`} data-scroll-behavior="smooth">
+    <html lang="es" className={`h-full ${bricolage.variable} ${instrument.variable}`} data-scroll-behavior="smooth">
       <body className="min-h-full flex flex-col">
-        <Backdrop />
         <Nav />
         {children}
       </body>

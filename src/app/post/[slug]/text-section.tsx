@@ -63,7 +63,7 @@ export async function TextSection({ postId, slug, isAdmin }: { postId: string; s
 
       {compass && (
         <div className="space-y-4">
-          <h3 className="font-display text-lg font-semibold">Compass editorial</h3>
+          <h3 className="font-display text-xl font-bold">Compass editorial</h3>
           <div className="panel p-4">
             <TextMap
               data={mapPoints}
@@ -95,7 +95,7 @@ export async function TextSection({ postId, slug, isAdmin }: { postId: string; s
 
       {compass && (
         <div>
-          <h3 className="mb-3 font-display text-lg font-semibold">Lectura literaria</h3>
+          <h3 className="mb-3 font-display text-xl font-bold">Lectura literaria</h3>
           <div className="grid gap-4 md:grid-cols-2">
             <DimensionCard title="Tesis" theory="Montaigne, Adorno" dim={dims.tesis} fields={[["Tesis", "valor"]]} />
             <DimensionCard title="Figuración" theory="Jakobson" dim={dims.figuracion} fields={[["Polo dominante", "polo"], ["Campos semánticos", "campos_semanticos"]]} />
@@ -144,7 +144,7 @@ export async function TextSection({ postId, slug, isAdmin }: { postId: string; s
 
       {features && (
         <div>
-          <h3 className="mb-1 font-display text-lg font-semibold">Estilometría</h3>
+          <h3 className="mb-1 font-display text-xl font-bold">Estilometría</h3>
           <p className="mb-3 text-sm text-ink-secondary">
             Rasgos calculados sin LLM, para anclar el compass. La z compara con todos los textos cargados: 0 es el
             promedio de Perpetuo, ±1 una desviación estándar.
@@ -185,7 +185,7 @@ export async function TextSection({ postId, slug, isAdmin }: { postId: string; s
 
       {similar.length > 0 && (
         <div>
-          <h3 className="mb-2 font-display text-lg font-semibold">Textos con vocabulario parecido</h3>
+          <h3 className="mb-2 font-display text-xl font-bold">Textos con vocabulario parecido</h3>
           <ol className="divide-y divide-line rounded-2xl border border-line text-sm">
             {similar.map((s) => (
               <li key={s.slug} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-2.5">

@@ -12,7 +12,7 @@ export type TrendDirection = "alza" | "baja" | "estable";
 const GLYPH: Record<TrendDirection, string> = { alza: "▲", baja: "▼", estable: "→" };
 const COLOR: Record<TrendDirection, string> = {
   alza: "var(--blue)",
-  baja: "var(--red)",
+  baja: "var(--red-ink)",
   estable: "var(--ink-muted)",
 };
 const WORD: Record<TrendDirection, string> = { alza: "al alza", baja: "a la baja", estable: "estable" };

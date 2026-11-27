@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/page-header";
 import Link from "next/link";
 import { getSubscriberDashboard } from "@/lib/subscriber-queries";
 import { formatMoney, formatNumber, formatPercent, formatTenure } from "@/lib/display";
@@ -23,14 +24,12 @@ export default async function SuscriptoresPage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">
-      <header className="mb-8">
-        <p className="text-sm uppercase tracking-wide text-ink-muted">Perpetuo</p>
-        <h1 className="mt-1 font-display text-3xl font-semibold">Suscriptores</h1>
-        <p className="mt-2 text-sm text-ink-muted">
-          Basado en la carga más reciente de suscriptores. Sube el export de Substack desde{" "}
-          <span className="font-medium">/subir</span> para mantenerlo al día.
-        </p>
-      </header>
+      <PageHeader
+        canvas="azul"
+        personaje="punto-estrella"
+        title="Suscriptores"
+        description="Basado en la carga más reciente de suscriptores. Sube el export de Substack desde /subir para mantenerlo al día."
+      />
 
       <SubscriberTabs active="panel" />
 
@@ -44,7 +43,7 @@ export default async function SuscriptoresPage() {
       </section>
 
       <section className="mb-16">
-        <h2 className="mb-1 font-display text-xl font-semibold">Comparación: gratuitos vs. pagos</h2>
+        <h2 className="mb-1 font-display text-2xl font-bold">Comparación: gratuitos vs. pagos</h2>
         <p className="mb-6 text-sm text-ink-muted">Promedios de cada cohorte sobre el snapshot más reciente.</p>
         <div className="grid gap-4 sm:grid-cols-2">
           <CohortCard title="Gratuitos" stats={d.freeVsPaid.free} />
@@ -53,7 +52,7 @@ export default async function SuscriptoresPage() {
       </section>
 
       <section className="mb-16">
-        <h2 className="mb-1 font-display text-xl font-semibold">Crecimiento neto acumulado</h2>
+        <h2 className="mb-1 font-display text-2xl font-bold">Crecimiento neto acumulado</h2>
         <p className="mb-6 text-sm text-ink-muted">
           Altas menos bajas por mes (según fecha de alta y de cancelación), acumulado.
         </p>

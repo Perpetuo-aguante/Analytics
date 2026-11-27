@@ -61,7 +61,7 @@ export function CompareForm({ points, categories }: { points: TextMapDatum[]; ca
       {result && (
         <div className="grid gap-6 lg:grid-cols-2">
           <section className="panel p-5 sm:p-6">
-            <h2 className="font-display text-lg font-semibold">Dónde caería</h2>
+            <h2 className="font-display text-xl font-bold">Dónde caería</h2>
             <p className="mt-1 text-sm text-ink-secondary">
               {result.wordCount.toLocaleString("es")} palabras.{" "}
               {estimate ? (
@@ -91,7 +91,7 @@ export function CompareForm({ points, categories }: { points: TextMapDatum[]; ca
           </section>
 
           <section className="panel p-5 sm:p-6">
-            <h2 className="font-display text-lg font-semibold">Textos más parecidos</h2>
+            <h2 className="font-display text-xl font-bold">Textos más parecidos</h2>
             <ol className="mt-4 divide-y divide-line text-sm">
               {result.neighbors.map((n) => (
                 <li key={n.slug} className="flex items-baseline justify-between gap-4 py-2">
@@ -111,7 +111,7 @@ export function CompareForm({ points, categories }: { points: TextMapDatum[]; ca
       )}
 
       <section className="panel p-5 sm:p-6">
-        <h2 className="font-display text-lg font-semibold">El compass</h2>
+        <h2 className="font-display text-xl font-bold">El compass</h2>
         {points.length === 0 ? (
           <p className="mt-2 text-sm text-ink-muted">Todavía no hay posts analizados.</p>
         ) : (

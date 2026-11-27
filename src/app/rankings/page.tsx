@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/personaje";
 import Link from "next/link";
 import { Suspense } from "react";
 import { FilterBar } from "@/components/filter-bar";
@@ -38,6 +39,8 @@ export default async function RankingsPage({ searchParams }: { searchParams: Pro
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">
       <PageHeader
+        canvas="rojo"
+        personaje="exclamacion-foco"
         title="Rankings"
         description="Qué pegó mejor. Elige el recorte de fechas y las secciones arriba, y la métrica aquí abajo: los rankings de toda la página se recalculan contra lo mismo."
         scope={describeFilters(filters)}
@@ -55,9 +58,11 @@ export default async function RankingsPage({ searchParams }: { searchParams: Pro
       </div>
 
       {rows.length === 0 ? (
-        <p className="panel p-8 text-sm text-ink-muted">
+        <div className="panel px-6">
+          <EmptyState>
           Ningún post cae dentro de este recorte. Prueba a ampliar el rango de fechas o a quitar secciones.
-        </p>
+          </EmptyState>
+        </div>
       ) : (
         <>
           <div className="rise rise-1 mb-10">
@@ -71,7 +76,7 @@ export default async function RankingsPage({ searchParams }: { searchParams: Pro
           </div>
 
           <section className="rise rise-2">
-            <h2 className="mb-1 font-display text-xl font-semibold">Por sección</h2>
+            <h2 className="mb-1 font-display text-2xl font-bold">Por sección</h2>
             <p className="mb-5 text-sm text-ink-secondary">
               El mismo ranking partido por tipo de publicación, para comparar cada sección contra sí misma.
             </p>

@@ -2,12 +2,14 @@
 //
 // Son exactamente los mismos siete hexes de la paleta de categorías de post
 // (ver `lib/categories.ts`), en el mismo orden: esa secuencia ya está
-// validada contra la superficie de la app (scripts/validate_palette.js de la
+// validada contra el crema de Perpetuo (#faf6f1) de la app (scripts/validate_palette.js de la
 // skill dataviz) en la lista de pares adyacentes, que es la que aplica a
 // líneas y barras —
 //
 //   Banda de luminosidad  PASS · Piso de croma        PASS
-//   Separación CVD        PASS (peor par ΔE 9.1)
+//   Separación CVD        WARN (rojo↔aqua ΔE 7.9 en deuteranopia: legal
+//                         solo con codificación secundaria — formas,
+//                         etiqueta directa y tabla, que todos los charts tienen)
 //   Piso visión normal    PASS (peor par ΔE 22.9)
 //   Contraste vs fondo    WARN (aqua, amarillo y rosa bajo 3:1)
 //
@@ -21,8 +23,8 @@
 // el orden se lo fija quien llama.
 
 export const SERIES_PALETTE = [
-  "#0f52a0", // azul de marca
-  "#d0301f", // rojo de marca
+  "#0a4f9c", // azul de Perpetuo, paso de datos (ver --blue-data)
+  "#e2543b", // rojo de Perpetuo
   "#1baf7a",
   "#eda100",
   "#8a4fd0",
