@@ -17,10 +17,10 @@ export function StatTiles({ tiles }: { tiles: StatTile[] }) {
     <section className={`mb-10 grid grid-cols-2 gap-3 ${tiles.length === 5 ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
       {tiles.map((tile) => (
         <div key={tile.label} className="panel panel-lift p-4 sm:p-5">
-          <p className="text-xs text-ink-secondary">{tile.label}</p>
+          <p className="eyebrow">{tile.label}</p>
           <p
-            className={`mt-2 font-display font-medium tracking-tight ${
-              tile.variant === "text" ? "break-words text-xl" : "tnum text-3xl sm:text-4xl"
+            className={`mt-3 ${
+              tile.variant === "text" ? "display-number break-words text-2xl" : "display-number text-4xl sm:text-[2.75rem]"
             }`}
           >
             {tile.value}

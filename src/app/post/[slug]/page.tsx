@@ -33,7 +33,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
       <Link href="/" className="text-sm text-ink-muted hover:underline">
         ← Volver
       </Link>
-      <h1 className="mt-4 font-display text-3xl font-semibold">{post.title}</h1>
+      <h1 className="mt-4 display-title text-4xl sm:text-5xl">{post.title}</h1>
       {post.author && <p className="mt-1 text-sm text-ink-muted">{post.author}</p>}
       <p className="mt-2 text-sm text-ink-muted">
         {post.topic ?? "—"} · {categoryLabel} · {post.published_at ?? "sin fecha"}

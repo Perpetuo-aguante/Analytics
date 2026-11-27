@@ -16,7 +16,7 @@ export default async function SubirPage() {
   if (session.state === "signed-out") {
     return (
       <main className="mx-auto max-w-md px-6 py-12">
-        <h1 className="mb-6 font-display text-2xl font-semibold">Cargar métricas semanales</h1>
+        <h1 className="mb-6 display-title text-4xl">Cargar métricas semanales</h1>
         <LoginForm />
       </main>
     );
@@ -25,7 +25,7 @@ export default async function SubirPage() {
   if (session.state === "not-allowed") {
     return (
       <main className="mx-auto max-w-md px-6 py-12">
-        <h1 className="mb-6 font-display text-2xl font-semibold">Cargar métricas semanales</h1>
+        <h1 className="mb-6 display-title text-4xl">Cargar métricas semanales</h1>
         <p className="mb-6 text-sm text-ink-muted">
           Entraste como <strong>{session.email}</strong>, pero esta cuenta no tiene permiso para cargar datos. Pide
           que agreguen tu correo a ADMIN_EMAILS.
@@ -40,14 +40,14 @@ export default async function SubirPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
       <div className="mb-10 flex items-center justify-between">
-        <h1 className="font-display text-2xl font-semibold">Cargar métricas semanales</h1>
+        <h1 className="display-title text-4xl">Cargar métricas semanales</h1>
         <SignOutButton />
       </div>
       <IngestRuns />
       <hr className="my-12 border-line" />
       <CategoryManager initialCategories={categories} />
       <hr className="my-12 border-line" />
-      <h2 className="mb-6 font-display text-xl font-semibold">Métricas de posts</h2>
+      <h2 className="mb-6 font-display text-2xl font-bold">Métricas de posts</h2>
       <Uploader />
       <hr className="my-12 border-line" />
       <ManageUploads />
@@ -56,7 +56,7 @@ export default async function SubirPage() {
 
       <hr className="my-16 border-line" />
 
-      <h2 className="mb-6 font-display text-xl font-semibold">Suscriptores</h2>
+      <h2 className="mb-6 font-display text-2xl font-bold">Suscriptores</h2>
       <SubscribersUploader />
       <hr className="my-12 border-line" />
       <SubscribersManageUploads />

@@ -60,6 +60,7 @@ export default async function DashboardsPage({ searchParams }: { searchParams: P
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">
       <PageHeader
+        canvas="negro"
         personaje="punto-estrella"
         title="Dashboards"
         description="El plano completo: cada punto es un post, cada línea una sección. El recorte de arriba manda sobre todos los charts a la vez, así que lo que ves en uno siempre cuadra con lo que ves en el otro."
@@ -90,7 +91,7 @@ export default async function DashboardsPage({ searchParams }: { searchParams: P
       ) : (
         <div className="space-y-6">
           <section className="panel rise rise-2 p-5 sm:p-6">
-            <h2 className="font-display text-lg font-semibold">Open rate vs. views</h2>
+            <h2 className="font-display text-xl font-bold">Open rate vs. views</h2>
             <p className="mb-5 mt-1 text-sm text-ink-secondary">
               Arriba a la derecha está lo que pegó por todos lados. Arriba a la izquierda, lo que abrió muy bien
               pero circuló poco: candidatos a volver a empujar.
@@ -99,7 +100,7 @@ export default async function DashboardsPage({ searchParams }: { searchParams: P
           </section>
 
           <section className="panel rise rise-3 p-5 sm:p-6">
-            <h2 className="font-display text-lg font-semibold">Views vs. nuevos suscriptores</h2>
+            <h2 className="font-display text-xl font-bold">Views vs. nuevos suscriptores</h2>
             <p className="mb-5 mt-1 text-sm text-ink-secondary">
               Qué posts convierten lectura en suscripción, y cuáles se leen mucho sin dejar nadie atrás.
             </p>
@@ -107,7 +108,7 @@ export default async function DashboardsPage({ searchParams }: { searchParams: P
           </section>
 
           <section className="panel rise rise-4 p-5 sm:p-6">
-            <h2 className="font-display text-lg font-semibold">Open rate por sección, carga a carga</h2>
+            <h2 className="font-display text-xl font-bold">Open rate por sección, carga a carga</h2>
             <p className="mb-5 mt-1 text-sm text-ink-secondary">
               Promedio de open rate en cada carga semanal. Sin secciones seleccionadas arriba se muestran las tres
               que salen por newsletter.
@@ -116,7 +117,7 @@ export default async function DashboardsPage({ searchParams }: { searchParams: P
           </section>
 
           <section className="panel rise rise-4 p-5 sm:p-6">
-            <h2 className="font-display text-lg font-semibold">Views acumuladas por sección</h2>
+            <h2 className="font-display text-xl font-bold">Views acumuladas por sección</h2>
             <p className="mb-5 mt-1 text-sm text-ink-secondary">
               Suma de views de todos los posts de cada sección, por carga semanal.
             </p>

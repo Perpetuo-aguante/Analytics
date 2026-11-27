@@ -63,6 +63,7 @@ export default async function RetencionPage() {
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">
       <PageHeader
+        canvas="azul"
         personaje="punto-estrella"
         title="Retención"
         description="Cuántos de los que se suscriben siguen al mes y a los 3 meses, y cómo se comportan en ese tiempo."
@@ -73,7 +74,7 @@ export default async function RetencionPage() {
       <StatTiles tiles={tiles} />
 
       <section className="mb-16">
-        <h2 className="mb-1 font-display text-xl font-semibold">Retención por mes de alta</h2>
+        <h2 className="mb-1 font-display text-2xl font-bold">Retención por mes de alta</h2>
         <p className="mb-6 max-w-3xl text-sm text-ink-muted">
           De los que se suscribieron cada mes, qué porcentaje seguía suscripto 30 y 90 días después. Una cohorte
           aparece cuando todas sus altas ya cumplieron el plazo. Sale de las fechas de alta y baja, así que cubre todo
@@ -88,7 +89,7 @@ export default async function RetencionPage() {
       </section>
 
       <section className="mb-16">
-        <h2 className="mb-1 font-display text-xl font-semibold">Los primeros meses: ¿qué hacen los que se quedan?</h2>
+        <h2 className="mb-1 font-display text-2xl font-bold">Los primeros meses: ¿qué hacen los que se quedan?</h2>
         <p className="mb-6 max-w-3xl text-sm text-ink-muted">
           Actividad en el primer mes y en el tercero, comparando a quienes seguían suscriptos a los 90 días con
           quienes se fueron antes. Sale de las cargas automáticas (hace falta una carga cerca del día 30 o 90 de cada

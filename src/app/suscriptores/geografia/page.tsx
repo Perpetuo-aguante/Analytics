@@ -87,6 +87,7 @@ export default async function SuscriptoresGeografiaPage({
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">
       <PageHeader
+        canvas="azul"
         personaje="punto-corriendo"
         title="Geografía"
         description="De dónde vienen los suscriptores y cómo cambia con el tiempo: el ranking de países y regiones de hoy, y la historia mes a mes reconstruida desde las fechas de alta y de baja."
@@ -148,7 +149,7 @@ export default async function SuscriptoresGeografiaPage({
       ) : (
         <div className="space-y-6">
           <section className="panel rise rise-2 p-5 sm:p-6">
-            <h2 className="font-display text-lg font-semibold">Quién sube y quién baja</h2>
+            <h2 className="font-display text-xl font-bold">Quién sube y quién baja</h2>
             <p className="mb-5 mt-1 text-sm text-ink-secondary">{describeGeoTrends(d)}</p>
             <DivergingBarChart data={movers} />
             <p className="mt-4 text-xs text-ink-muted">
@@ -159,7 +160,7 @@ export default async function SuscriptoresGeografiaPage({
           </section>
 
           <section className="panel rise rise-3 p-5 sm:p-6">
-            <h2 className="font-display text-lg font-semibold">Países</h2>
+            <h2 className="font-display text-xl font-bold">Países</h2>
             <p className="mb-5 mt-1 text-sm text-ink-secondary">
               Cada país con suscriptores activos, cuánto pesa en la lista y cómo se movió en la ventana. La columna
               de peso dice si un país que crece igual está perdiendo terreno frente al resto.
@@ -168,7 +169,7 @@ export default async function SuscriptoresGeografiaPage({
           </section>
 
           <section className="panel rise rise-4 p-5 sm:p-6">
-            <h2 className="font-display text-lg font-semibold">Historia por país</h2>
+            <h2 className="font-display text-xl font-bold">Historia por país</h2>
             <p className="mb-5 mt-1 text-sm text-ink-secondary">
               Suscriptores activos al cierre de cada mes. Los seis países más grandes llevan línea propia; el resto
               se suma en &ldquo;Otros&rdquo;, así que el total de cada mes sigue cuadrando.
@@ -177,7 +178,7 @@ export default async function SuscriptoresGeografiaPage({
           </section>
 
           <section className="panel rise rise-4 p-5 sm:p-6">
-            <h2 className="font-display text-lg font-semibold">Regiones</h2>
+            <h2 className="font-display text-xl font-bold">Regiones</h2>
             <p className="mb-5 mt-1 text-sm text-ink-secondary">
               El mismo público, agrupado por región del mundo: es el nivel donde se ve si la lista es
               latinoamericana, europea o repartida.
@@ -220,7 +221,7 @@ export default async function SuscriptoresGeografiaPage({
 
           {d.countriesWithProvinces.length > 0 && (
             <section className="panel rise rise-4 p-5 sm:p-6">
-              <h2 className="font-display text-lg font-semibold">Estados y provincias</h2>
+              <h2 className="font-display text-xl font-bold">Estados y provincias</h2>
               <p className="mb-5 mt-1 text-sm text-ink-secondary">
                 Dentro de un país, dónde está el público. Substack solo trae estado/provincia para parte de los
                 suscriptores, así que estos conteos son un piso, no el total del país.
@@ -272,7 +273,7 @@ export default async function SuscriptoresGeografiaPage({
           )}
 
           <section className="panel rise rise-4 p-5 text-sm text-ink-secondary sm:p-6">
-            <h2 className="mb-3 font-display text-lg font-semibold text-ink">Cómo se calcula esto</h2>
+            <h2 className="mb-3 font-display text-xl font-bold text-ink">Cómo se calcula esto</h2>
             <ul className="space-y-2">
               <li>
                 <span className="font-medium text-ink">El histórico se reconstruye</span>, no está guardado: alguien

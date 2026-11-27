@@ -39,6 +39,7 @@ export default async function RankingsPage({ searchParams }: { searchParams: Pro
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">
       <PageHeader
+        canvas="rojo"
         personaje="exclamacion-foco"
         title="Rankings"
         description="Qué pegó mejor. Elige el recorte de fechas y las secciones arriba, y la métrica aquí abajo: los rankings de toda la página se recalculan contra lo mismo."
@@ -75,7 +76,7 @@ export default async function RankingsPage({ searchParams }: { searchParams: Pro
           </div>
 
           <section className="rise rise-2">
-            <h2 className="mb-1 font-display text-xl font-semibold">Por sección</h2>
+            <h2 className="mb-1 font-display text-2xl font-bold">Por sección</h2>
             <p className="mb-5 text-sm text-ink-secondary">
               El mismo ranking partido por tipo de publicación, para comparar cada sección contra sí misma.
             </p>

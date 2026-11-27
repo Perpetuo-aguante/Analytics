@@ -8,7 +8,7 @@ export default function NotFound() {
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-center justify-center gap-6 px-6 py-24 text-center">
       <Personaje name="exclamacion-foco" height={160} />
       <div>
-        <h1 className="font-display text-4xl font-medium">Esta página no existe</h1>
+        <h1 className="display-title text-5xl">Esta página no existe</h1>
         <p className="mt-3 text-ink-secondary">Puede que el post se haya borrado o que el enlace esté mal escrito.</p>
       </div>
       <Link href="/" className="btn-primary">

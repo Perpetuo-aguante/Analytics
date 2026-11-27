@@ -70,13 +70,18 @@
   --color-red: var(--red);
   --color-red-ink: var(--red-ink);
   --color-lima: var(--lima);
+  --color-azul: var(--azul);
+  --color-rojo: var(--rojo);
+  --color-negro: var(--negro);
+  --color-crema: var(--crema);
   --color-on-brand: var(--on-brand);
 
-  /* Neue Montreal es la letra de Perpetuo. No se sirve desde acá (licencia):
-     quien la tenga instalada la ve; el resto cae en Helvetica Neue, que es
-     el apoyo que usa el propio brandbook. */
-  --font-display: "Neue Montreal", "Helvetica Neue", Helvetica, Arial, sans-serif;
-  --font-sans: "Neue Montreal", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  /* Títulos: Bricolage Grotesque, extra negra y un poco angosta — el mismo
+     trazo grueso y recortado del logotipo PERPETUO. Texto: Instrument Sans,
+     una grotesca con carácter (no la Helvetica de siempre). La marca no usa
+     serif, así que todo el carácter lo dan el peso y el ancho. */
+  --font-display: var(--font-bricolage), "Helvetica Neue", Arial, sans-serif;
+  --font-sans: var(--font-instrument), "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
@@ -87,6 +92,9 @@ html {
 }
 
 body {
+  /* Los lienzos de encabezado ocupan 100vw; clip corta el ancho de la barra
+     de scroll sin crear un contenedor de scroll (no rompe position: sticky). */
+  overflow-x: clip;
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font-sans);
@@ -97,7 +105,37 @@ h1,
 h2,
 h3 {
   font-family: var(--font-display);
-  letter-spacing: -0.02em;
+  font-variation-settings: "opsz" 32;
+  letter-spacing: -0.025em;
+}
+
+/* El título de sección: extra negro, angosto y apretado, como un afiche. */
+.display-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-stretch: 78%;
+  font-variation-settings: "opsz" 96, "wdth" 78;
+  line-height: 0.92;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+
+/* Cifras grandes (stat tiles): la misma letra de los títulos, en bold. */
+.display-number {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-variation-settings: "opsz" 48, "wdth" 85;
+  letter-spacing: -0.015em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Etiqueta en versalitas espaciadas para rótulos de tarjeta. */
+.eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--ink-secondary);
 }
 
 /* Subrayar con el cursor deja un bloque lima: el color de "presencia". */
@@ -315,6 +353,16 @@ tbody tr:hover {
   animation-delay: 0.15s;
 }
 
+/* El disco crema donde se para un personaje sobre un lienzo oscuro. */
+.personaje-disc {
+  animation: disc-in 0.6s var(--ease-out) both;
+}
+
+@keyframes disc-in {
+  from { opacity: 0; transform: scale(0.85); }
+  to   { opacity: 1; transform: none; }
+}
+
 @keyframes personaje-in {
   from { opacity: 0; transform: translateY(8px) rotate(-4deg); }
   to   { opacity: 1; transform: none; }
@@ -449,7 +497,8 @@ summary:focus-visible,
   .rise,
   .bar-fill,
   .chart-tooltip,
-  .personaje {
+  .personaje,
+  .personaje-disc {
     animation: none;
   }
   .panel,

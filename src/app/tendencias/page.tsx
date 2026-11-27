@@ -35,6 +35,7 @@ export default async function TendenciasPage({ searchParams }: { searchParams: P
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">
       <PageHeader
+        canvas="rojo"
         personaje="punto-corriendo"
         title="Tendencias"
         description="Qué está ganando lectores ahora y qué temas vuelven a circular. Se calcula con las vistas nuevas entre una carga y la siguiente."
@@ -49,7 +50,7 @@ export default async function TendenciasPage({ searchParams }: { searchParams: P
       ) : (
         <>
           <section className="mb-16">
-            <h2 className="mb-1 font-display text-xl font-semibold">En alza ahora</h2>
+            <h2 className="mb-1 font-display text-2xl font-bold">En alza ahora</h2>
             <p className="mb-6 max-w-3xl text-sm text-ink-muted">
               Los posts con más vistas nuevas por día entre las dos últimas cargas (hasta el {overview.latestUpload}).
             </p>
@@ -57,7 +58,7 @@ export default async function TendenciasPage({ searchParams }: { searchParams: P
           </section>
 
           <section className="mb-16">
-            <h2 className="mb-1 font-display text-xl font-semibold">Segunda vida</h2>
+            <h2 className="mb-1 font-display text-2xl font-bold">Segunda vida</h2>
             <p className="mb-6 max-w-3xl text-sm text-ink-muted">
               Posts publicados hace más de {SECOND_LIFE_MIN_AGE_DAYS} días que en la última carga ganaron al menos{" "}
               {SECOND_LIFE_RATIO} veces su ritmo habitual (y {SECOND_LIFE_MIN_PER_DAY}+ vistas por día): señal de que el
@@ -71,7 +72,7 @@ export default async function TendenciasPage({ searchParams }: { searchParams: P
           </section>
 
           <section className="mb-16">
-            <h2 className="mb-1 font-display text-xl font-semibold">Interés por sección, semana a semana</h2>
+            <h2 className="mb-1 font-display text-2xl font-bold">Interés por sección, semana a semana</h2>
             <p className="mb-6 max-w-3xl text-sm text-ink-muted">
               Vistas nuevas que ganó cada sección por semana, sumando todos sus posts (los nuevos y los de archivo).
               Un post con varias secciones suma en cada una.

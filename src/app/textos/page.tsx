@@ -111,6 +111,7 @@ export default async function TextosPage({ searchParams }: { searchParams: Promi
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">
       <PageHeader
+        canvas="lima"
         personaje="interrogacion-libreta"
         title="Compass editorial"
         description="Cada post en dos ejes: referencial ↔ poético (¿apunta al mundo o a su propio lenguaje?) e impersonal ↔ subjetivo (¿cuánto está construido desde el yo que enuncia?). Debajo, cómo rinde cada zona del plano y el perfil literario del recorte."
@@ -148,7 +149,7 @@ export default async function TextosPage({ searchParams }: { searchParams: Promi
           <section className="panel rise rise-2 p-5 sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <h2 className="font-display text-lg font-semibold">El compass</h2>
+                <h2 className="font-display text-xl font-bold">El compass</h2>
                 <p className="mt-1 max-w-2xl text-sm text-ink-secondary">
                   Scores de 0 a 100 según las rúbricas de cada eje. Los puntos atenuados tienen confianza menor a{" "}
                   {Math.round(CONFIDENCE_FLOOR * 100)}% o una cita de evidencia que no existe en el texto. Pasa el
@@ -171,7 +172,7 @@ export default async function TextosPage({ searchParams }: { searchParams: Promi
           </section>
 
           <section className="panel rise rise-3 p-5 sm:p-6">
-            <h2 className="font-display text-lg font-semibold">Cómo rinde cada cuadrante</h2>
+            <h2 className="font-display text-xl font-bold">Cómo rinde cada cuadrante</h2>
             <p className="mb-5 mt-1 text-sm text-ink-secondary">
               Promedio de las métricas más recientes de los posts de cada zona del compass. Es una correlación, no una
               causa: cada cuadrante mezcla secciones, fechas y temas distintos.
@@ -210,7 +211,7 @@ export default async function TextosPage({ searchParams }: { searchParams: Promi
           </section>
 
           <section className="panel rise rise-3 p-5 sm:p-6">
-            <h2 className="font-display text-lg font-semibold">Perfil de cada sección</h2>
+            <h2 className="font-display text-xl font-bold">Perfil de cada sección</h2>
             <p className="mb-5 mt-1 text-sm text-ink-secondary">
               Promedios de los posts con lectura de cada sección. Dificultad (lector implícito) y fuerza del gancho, de 1 a 5.
             </p>
@@ -246,7 +247,7 @@ export default async function TextosPage({ searchParams }: { searchParams: Promi
           </section>
 
           <section className="panel rise rise-4 p-5 sm:p-6">
-            <h2 className="font-display text-lg font-semibold">Temas</h2>
+            <h2 className="font-display text-xl font-bold">Temas</h2>
             <p className="mb-5 mt-1 text-sm text-ink-secondary">
               Suma del peso de cada tema en los posts del recorte (un post aporta, en total, hasta 1 por tema). Lo
               político vive aquí, no en los ejes.
@@ -256,7 +257,7 @@ export default async function TextosPage({ searchParams }: { searchParams: Promi
 
           <section className="rise rise-4 grid gap-6 md:grid-cols-2">
             <div className="panel p-5">
-              <h2 className="font-display text-base font-semibold">
+              <h2 className="font-display text-lg font-bold">
                 Dificultad<span className="ml-2 text-xs font-normal text-ink-muted">lector implícito (Iser, Eco), 1 a 5</span>
               </h2>
               <div className="mt-4">
@@ -268,7 +269,7 @@ export default async function TextosPage({ searchParams }: { searchParams: Promi
               </div>
             </div>
             <div className="panel p-5">
-              <h2 className="font-display text-base font-semibold">
+              <h2 className="font-display text-lg font-bold">
                 Tradición de las referencias<span className="ml-2 text-xs font-normal text-ink-muted">intertextualidad</span>
               </h2>
               <div className="mt-4">
@@ -281,7 +282,7 @@ export default async function TextosPage({ searchParams }: { searchParams: Promi
             </div>
             {DISTRIBUTIONS.map((d) => (
               <div key={d.title} className="panel p-5">
-                <h2 className="font-display text-base font-semibold">
+                <h2 className="font-display text-lg font-bold">
                   {d.title}
                   {d.note && <span className="ml-2 text-xs font-normal text-ink-muted">{d.note}</span>}
                 </h2>
