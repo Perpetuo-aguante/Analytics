@@ -149,7 +149,7 @@ export function InterestChart({
           </p>
         )}
       </div>
-      <details className="mt-2">
+      <details className="table-toggle mt-2">
         <summary className="cursor-pointer text-xs text-ink-secondary hover:text-ink">Ver como tabla</summary>
         <table className="mt-2 w-full border-collapse text-xs tnum">
           <thead>

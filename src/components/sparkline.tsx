@@ -14,6 +14,9 @@ export function Sparkline({
   height?: number;
 }) {
   if (values.length < 2) return null;
+  // Sin hooks (es server component): el id sale de los datos. Dos sparklines
+  // idénticas comparten degradado, que es justo lo que se quiere.
+  const gradientId = `spark-${(color + values.join("_")).replace(/[^a-zA-Z0-9_-]/g, "")}`.slice(0, 120);
 
   const min = Math.min(...values);
   const max = Math.max(...values);
@@ -28,6 +31,13 @@ export function Sparkline({
 
   return (
     <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} aria-hidden className="overflow-visible">
+      <defs>
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity={0.22} />
+          <stop offset="100%" stopColor={color} stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      <path d={`${path} L ${width} ${height} L 0 ${height} Z`} fill={`url(#${gradientId})`} stroke="none" />
       <path d={path} fill="none" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
       <circle cx={width} cy={1 + inner - ((values[values.length - 1] - min) / range) * inner} r={2} fill={color} />
     </svg>

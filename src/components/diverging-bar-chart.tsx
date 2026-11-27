@@ -23,21 +23,22 @@ export function DivergingBarChart({
     formatValue ?? ((v: number) => `${v > 0 ? "+" : v < 0 ? "−" : "±"}${Math.abs(v).toLocaleString("es")}`);
 
   return (
-    <div className="space-y-2.5">
-      {data.map((d) => {
+    <div className="space-y-1">
+      {data.map((d, index) => {
         const ratio = Math.abs(d.value) / max;
         const positive = d.value >= 0;
         return (
-          <div key={d.key} className="flex items-center gap-3 text-sm">
-            <span className="w-32 shrink-0 truncate text-ink-muted" title={d.label}>
+          <div key={d.key} className="bar-row flex items-center gap-3 text-sm" title={`${d.label}: ${format(d.value)}`}>
+            <span className="w-24 shrink-0 truncate sm:w-32 text-ink-secondary" title={d.label}>
               {d.label}
             </span>
             <div className="flex flex-1 items-center">
               <div className="flex h-2.5 flex-1 justify-end">
                 {!positive && (
                   <div
-                    className="h-2.5 rounded-l-[4px] bg-red"
-                    style={{ width: `${Math.max(ratio * 100, 2)}%` }}
+                    data-dir="left"
+                    className="bar-fill h-2.5 rounded-l-[4px] bg-red"
+                    style={{ width: `${Math.max(ratio * 100, 2)}%`, animationDelay: `${Math.min(index, 12) * 40}ms` }}
                   />
                 )}
               </div>
@@ -45,8 +46,11 @@ export function DivergingBarChart({
               <div className="flex h-2.5 flex-1">
                 {positive && (
                   <div
-                    className="h-2.5 rounded-r-[4px] bg-blue"
-                    style={{ width: `${Math.max(ratio * 100, d.value > 0 ? 2 : 0)}%` }}
+                    className="bar-fill h-2.5 rounded-r-[4px] bg-blue"
+                    style={{
+                      width: `${Math.max(ratio * 100, d.value > 0 ? 2 : 0)}%`,
+                      animationDelay: `${Math.min(index, 12) * 40}ms`,
+                    }}
                   />
                 )}
               </div>

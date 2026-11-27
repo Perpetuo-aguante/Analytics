@@ -47,9 +47,9 @@ function NavLinks() {
             key={section.href}
             href={`${section.href}${suffix}`}
             aria-current={isActive ? "page" : undefined}
-            className={`shrink-0 rounded-full px-3 py-1.5 transition-colors ${
+            className={`shrink-0 rounded-full px-3 py-1.5 transition-all duration-200 ${
               isActive
-                ? "bg-blue text-on-brand font-semibold"
+                ? "bg-blue font-semibold text-on-brand shadow-[0_6px_14px_-6px_rgb(15_82_160/0.7)]"
                 : "text-ink-secondary hover:bg-blue/10 hover:text-ink"
             }`}
           >
@@ -66,10 +66,15 @@ function NavLinks() {
 
 export function Nav() {
   return (
-    <header className="sticky top-0 z-20 border-b border-line bg-bg/70 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-6 py-3">
-        <Link href="/" className="flex shrink-0 items-center gap-2.5">
-          <span className="inline-block h-5 w-5 rounded-full bg-blue" aria-hidden />
+    // La nav flota: una cápsula de vidrio despegada del borde superior, con
+    // sombra propia, en vez de una franja pegada al techo de la ventana.
+    <header className="sticky top-0 z-20 px-3 pt-3 sm:px-4">
+      <div className="nav-float mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-2.5 sm:px-5">
+        <Link href="/" className="group flex shrink-0 items-center gap-2.5">
+          <span
+            className="inline-block h-5 w-5 rounded-full bg-[radial-gradient(circle_at_30%_30%,#3d7fd0,var(--blue)_55%,var(--blue-deep))] shadow-[0_3px_8px_-2px_rgb(15_82_160/0.6)] transition-transform duration-300 group-hover:scale-110"
+            aria-hidden
+          />
           <span className="font-display text-base font-semibold tracking-tight">
             Perpetuo <span className="text-ink-muted">Analítica</span>
           </span>

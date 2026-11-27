@@ -2,7 +2,9 @@
 // actividad, antigüedad, revenue por plan). A diferencia de LineChart/
 // ScatterChart no usa SVG: para etiquetas largas y de longitud variable,
 // divs con ancho en porcentaje son más simples y no requieren medir texto.
-// No tiene interacción, así que no necesita ser un client component.
+// La interacción es CSS (ver .bar-row/.bar-fill en globals.css): las barras
+// crecen desde el eje al entrar, escalonadas, y la fila bajo el cursor se
+// ilumina. Por eso sigue siendo un server component.
 
 export type BarDatum = { label: string; value: number };
 
@@ -19,16 +21,19 @@ export function BarChart({
   const format = formatValue ?? ((v: number) => v.toLocaleString("es"));
 
   return (
-    <div className="space-y-2.5">
-      {data.map((d) => (
-        <div key={d.label} className="flex items-center gap-3 text-sm">
-          <span className="w-36 shrink-0 truncate text-ink-muted" title={d.label}>
+    <div className="space-y-1">
+      {data.map((d, index) => (
+        <div key={d.label} className="bar-row flex items-center gap-3 text-sm" title={`${d.label}: ${format(d.value)}`}>
+          <span className="w-24 shrink-0 truncate sm:w-36 text-ink-secondary" title={d.label}>
             {d.label}
           </span>
-          <div className="h-2.5 flex-1 rounded-full bg-surface-sunk">
+          <div className="h-3 flex-1 overflow-hidden rounded-full bg-surface-sunk">
             <div
-              className="h-2.5 rounded-l-none rounded-r-[4px] bg-blue"
-              style={{ width: `${Math.max((d.value / max) * 100, d.value > 0 ? 2 : 0)}%` }}
+              className="bar-fill h-3 rounded-r-[5px] bg-[linear-gradient(90deg,var(--blue-deep),var(--blue))]"
+              style={{
+                width: `${Math.max((d.value / max) * 100, d.value > 0 ? 2 : 0)}%`,
+                animationDelay: `${Math.min(index, 12) * 40}ms`,
+              }}
             />
           </div>
           <span className="tnum w-20 shrink-0 text-right font-medium">{format(d.value)}</span>
