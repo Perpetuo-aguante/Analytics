@@ -15,7 +15,7 @@ const SECTIONS = [
   { href: "/dashboards", label: "Dashboards" },
   { href: "/promedios", label: "Promedios" },
   { href: "/tendencias", label: "Tendencias" },
-  { href: "/textos", label: "Textos" },
+  { href: "/textos", label: "Compass" },
   { href: "/suscriptores", label: "Suscriptores" },
 ] as const;
 

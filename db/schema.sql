@@ -284,24 +284,205 @@ create table if not exists post_texts (
   updated_at timestamptz not null default now()
 );
 
+-- ═════════════════════════════════════════════
+-- Compass editorial y análisis literario de posts (ver
+-- analysis/README.md y el spec). Lo escribe el worker de Python
+-- (analysis/), que corre en batch; la app solo lo lee. Cada tabla guarda el
+-- content_hash del texto que analizó y la versión de sus reglas: si el texto
+-- cambia o sube la versión, el worker lo vuelve a analizar.
+--
+-- Los vocabularios cerrados de los `check` salen de
+-- analysis/perpetuo_analysis/vocab.py (tests/test_vocab.py los compara).
+-- ═════════════════════════════════════════════
+
+-- Taxonomía fija de temas (PROVISIONAL, ver vocab.py). Lo político vive
+-- aquí, no en los ejes.
+create table if not exists theme_taxonomy (
+  slug text primary key,
+  nombre text not null unique,
+  descripcion text,
+  sort_order integer not null default 0
+);
+
+insert into theme_taxonomy (slug, nombre, descripcion, sort_order) values
+  ('politica-poder', 'Política y poder', 'gobierno, Estado, elecciones, partidos, poder público', 0),
+  ('violencia', 'Violencia', 'crimen, narco, guerra, desaparición, violencia de Estado o doméstica', 1),
+  ('justicia-derechos', 'Justicia y derechos', 'derechos humanos, leyes, impunidad, activismo', 2),
+  ('migracion-frontera', 'Migración y frontera', 'migrar, exilio, frontera, diáspora', 3),
+  ('ciudad-territorio', 'Ciudad y territorio', 'la ciudad, el barrio, el paisaje, el lugar', 4),
+  ('memoria-historia', 'Memoria e historia', 'pasado colectivo, archivo, historia nacional', 5),
+  ('familia', 'Familia', 'padres, hijos, herencia, crianza, linaje', 6),
+  ('amor-deseo', 'Amor y deseo', 'pareja, erotismo, enamoramiento, ruptura', 7),
+  ('duelo-muerte', 'Duelo y muerte', 'pérdida, muerte, enfermedad terminal, luto', 8),
+  ('cuerpo-salud', 'Cuerpo y salud', 'cuerpo, enfermedad, salud mental, envejecimiento', 9),
+  ('identidad-genero', 'Identidad y género', 'género, sexualidad, raza, clase como identidad', 10),
+  ('infancia', 'Infancia', 'niñez, adolescencia, formación', 11),
+  ('trabajo-economia', 'Trabajo y economía', 'dinero, empleo, precariedad, clase, consumo', 12),
+  ('tecnologia', 'Tecnología', 'internet, redes, inteligencia artificial, ciencia aplicada', 13),
+  ('naturaleza-ambiente', 'Naturaleza y ambiente', 'animales, ecología, crisis climática', 14),
+  ('fe-espiritualidad', 'Fe y espiritualidad', 'religión, lo sagrado, ritual, mística', 15),
+  ('literatura-escritura', 'Literatura y escritura', 'leer, escribir, libros, el oficio, la lengua', 16),
+  ('arte-cultura', 'Arte y cultura', 'artes visuales, cine, música, teatro, cultura popular', 17),
+  ('filosofia-ideas', 'Filosofía e ideas', 'pensamiento, ética, conceptos, teoría', 18),
+  ('viaje', 'Viaje', 'viajar, desplazamiento, extranjería', 19),
+  ('comida', 'Comida', 'cocina, alimentación, sobremesa', 20),
+  ('deporte-juego', 'Deporte y juego', 'deporte, futbol, juego, competencia', 21)
+on conflict (slug) do update set nombre = excluded.nombre, descripcion = excluded.descripcion, sort_order = excluded.sort_order;
+
 -- ─────────────────────────────────────────────
--- post_text_analyses: la lectura de cada texto en ejes de estilo y
--- sentimiento. La hace el agente (un LLM) y la sube junto con el texto o
--- después. Escalas:
---   sentimiento: -1 (muy negativo) a 1 (muy positivo), 0 = neutro;
---   ensayistico, personal, politico, intimo: 0 a 1, independientes entre sí
---   (un texto puede ser muy personal y muy político a la vez).
+-- Capa 1: estilometría (spaCy, sin LLM). Features crudas; los z-scores se
+-- calculan al leer, con stylometry_norms.
 -- ─────────────────────────────────────────────
-create table if not exists post_text_analyses (
+create table if not exists post_stylometry (
   post_id uuid primary key references posts(id) on delete cascade,
-  sentimiento numeric(4,3) check (sentimiento between -1 and 1),
-  ensayistico numeric(4,3) check (ensayistico between 0 and 1),
-  personal numeric(4,3) check (personal between 0 and 1),
-  politico numeric(4,3) check (politico between 0 and 1),
-  intimo numeric(4,3) check (intimo between 0 and 1),
-  tono text,                               -- una o dos palabras: "melancólico", "irónico"...
-  resumen text,                            -- una o dos frases
-  temas text[] not null default '{}',
-  modelo text,                             -- qué modelo hizo la lectura, ej. "grok-4"
+  content_hash text not null,
+  version text not null,
+  spacy_model text not null,
+  oracion_long_media double precision,
+  oracion_long_cv double precision,
+  mtld double precision,
+  densidad_lexica double precision,
+  ratio_primera_persona double precision,
+  densidad_referencial double precision,
+  densidad_adjetival double precision,
+  profundidad_sintactica double precision,
+  ratio_subordinacion double precision,
+  densidad_citas double precision,
+  ratio_dialogo double precision,
+  ratio_interrogativas double precision,
+  longitud_tokens integer not null,
+  num_oraciones integer not null,
+  num_parrafos integer not null,
+  computed_at timestamptz not null default now()
+);
+
+-- Media y desviación de cada feature sobre el corpus completo. Se recalculan
+-- cuando el corpus crece más de 10% desde el último cálculo.
+create table if not exists stylometry_norms (
+  feature text primary key,
+  media double precision not null,
+  desviacion double precision not null,
+  corpus_size integer not null,
+  computed_at timestamptz not null default now()
+);
+
+-- ─────────────────────────────────────────────
+-- Capa 2: afecto por párrafo. Los párrafos de menos de 15 tokens se fusionan
+-- con el siguiente; idx es el orden ya fusionado y char_start/char_end
+-- apuntan a post_texts.body. *_baseline = pysentimiento; *_llm = el LLM;
+-- emocion_dominante es la que gana (la de mayor confianza).
+-- ─────────────────────────────────────────────
+create table if not exists post_paragraphs (
+  post_id uuid not null references posts(id) on delete cascade,
+  idx integer not null,
+  char_start integer not null,
+  char_end integer not null,
+  token_count integer not null,
+  valencia_baseline numeric(4,3) check (valencia_baseline between -1 and 1),
+  emocion_baseline text check (emocion_baseline in ('alegría', 'tristeza', 'ira', 'miedo', 'sorpresa', 'asco', 'nostalgia', 'asombro', 'ternura', 'neutra')),
+  emocion_baseline_conf numeric(4,3),
+  valencia_llm numeric(4,3) check (valencia_llm between -1 and 1),
+  activacion numeric(4,3) check (activacion between 0 and 1),
+  emocion_llm text check (emocion_llm in ('alegría', 'tristeza', 'ira', 'miedo', 'sorpresa', 'asco', 'nostalgia', 'asombro', 'ternura', 'neutra')),
+  emocion_llm_conf numeric(4,3),
+  emocion_dominante text check (emocion_dominante in ('alegría', 'tristeza', 'ira', 'miedo', 'sorpresa', 'asco', 'nostalgia', 'asombro', 'ternura', 'neutra')),
+  emocion_fuente text check (emocion_fuente in ('baseline', 'llm')),
+  primary key (post_id, idx)
+);
+
+create table if not exists post_affect (
+  post_id uuid primary key references posts(id) on delete cascade,
+  content_hash text not null,
+  version text not null,
+  baseline_model text,
+  arco text check (arco in ('ascenso', 'caída', 'caída-ascenso', 'ascenso-caída', 'ascenso-caída-ascenso', 'caída-ascenso-caída')),      -- null si hay menos de 6 párrafos
+  arco_ajuste numeric(4,3),                -- correlación con la forma elegida
+  valencia_media numeric(4,3),
+  activacion_media numeric(4,3),
+  rango_valencia numeric(4,3),
+  -- Del LLM (null hasta que corre la capa 3):
+  distancia_afectiva text check (distancia_afectiva in ('contenida', 'moderada', 'efusiva')),
+  distancia_evidencia text,
+  distancia_confianza numeric(4,3),
+  ironia boolean,
+  ironia_evidencia text[],
+  ironia_confianza numeric(4,3),
+  llm_hash text,                           -- content_hash con el que corrió el LLM
+  computed_at timestamptz not null default now()
+);
+
+-- ─────────────────────────────────────────────
+-- Capa 3: análisis literario (LLM). Las columnas sueltas son los valores de
+-- vocabulario cerrado (para agrupar y graficar en SQL); `dimensiones` guarda
+-- la salida completa de cada dimensión: valores, evidencia, confianza y
+-- evidencia_invalida.
+-- ─────────────────────────────────────────────
+create table if not exists post_literary (
+  post_id uuid primary key references posts(id) on delete cascade,
+  content_hash text not null,
+  prompt_version text not null,
+  modelo text not null,
+  -- Compass: X referencial (0) ↔ poético (100); Y impersonal (0) ↔ subjetivo (100).
+  compass_x integer not null check (compass_x between 0 and 100),
+  compass_x_confianza numeric(4,3) not null,
+  compass_y integer not null check (compass_y between 0 and 100),
+  compass_y_confianza numeric(4,3) not null,
+  narrador text check (narrador in ('homodiegético', 'autodiegético', 'heterodiegético', 'ensayístico', 'impersonal')),
+  focalizacion text check (focalizacion in ('cero', 'interna', 'externa', 'variable')),
+  distancia_narrativa text check (distancia_narrativa in ('mimética', 'diegética', 'mixta')),
+  num_voces integer,
+  voces_con_agencia integer,
+  contraparte text check (contraparte in ('ausente', 'hombre de paja', 'representada con justicia')),
+  orden_temporal text check (orden_temporal in ('lineal', 'analepsis', 'prolepsis', 'fragmentario')),
+  ritmo_dominante text check (ritmo_dominante in ('escena', 'sumario', 'pausa descriptiva', 'elipsis')),
+  tesis text check (tesis in ('explícita al inicio', 'explícita al final', 'implícita', 'ausente')),
+  estructura text check (estructura in ('deductiva', 'inductiva', 'dialéctica', 'ensayo-paseo', 'acumulativa')),
+  autoridad text check (autoridad in ('ninguna', 'citas de apoyo', 'citas en diálogo crítico')),
+  polo_dominante text check (polo_dominante in ('metafórico', 'metonímico', 'equilibrado')),
+  dificultad integer check (dificultad between 1 and 5),
+  tipo_gancho text check (tipo_gancho in ('escena in medias res', 'pregunta', 'tesis provocadora', 'anécdota', 'dato', 'cita', 'imagen', 'contexto expositivo')),
+  fuerza_gancho integer check (fuerza_gancho between 1 and 5),
+  cierre text check (cierre in ('abierto', 'cerrado', 'epifánico', 'remate irónico', 'circular', 'llamado a la acción')),
+  dimensiones jsonb not null,
+  campos_evidencia_invalida text[] not null default '{}',
+  secciones integer not null default 1,    -- >1 si el texto se analizó por partes
+  tokens_entrada integer,
+  tokens_salida integer,
   analyzed_at timestamptz not null default now()
 );
+
+create table if not exists post_themes (
+  post_id uuid not null references posts(id) on delete cascade,
+  tema text not null references theme_taxonomy(slug) on update cascade,
+  peso numeric(4,3) not null check (peso between 0 and 1),
+  primary key (post_id, tema)
+);
+
+create index if not exists idx_post_themes_tema on post_themes (tema);
+
+create table if not exists post_references (
+  id uuid primary key default gen_random_uuid(),
+  post_id uuid not null references posts(id) on delete cascade,
+  autor text not null,
+  obra text,
+  tipo text not null check (tipo in ('cita', 'alusión', 'parodia', 'epígrafe')),
+  tradicion text not null check (tradicion in ('latinoamericana', 'española', 'europea', 'anglo', 'clásica', 'otra')),
+  evidencia text,
+  evidencia_invalida boolean not null default false
+);
+
+create index if not exists idx_post_references_post on post_references (post_id);
+
+-- Registro de cada corrida del worker, por post y capa.
+create table if not exists analysis_runs (
+  id uuid primary key default gen_random_uuid(),
+  post_id uuid references posts(id) on delete cascade,
+  capa text not null,                      -- 'estilometria' | 'afecto' | 'literario' | 'normas'
+  ok boolean not null,
+  error text,
+  detalle jsonb,
+  duracion_ms integer,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_analysis_runs_created on analysis_runs (created_at desc);

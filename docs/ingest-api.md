@@ -119,28 +119,27 @@ Cada carga, exitosa o no, queda registrada y se ve en `/subir` → **Cargas auto
 
 # Textos completos
 
-Además de las métricas, el agente sube el **texto completo de cada post** (el .txt) y, si puede,
-su **lectura de estilo y sentimiento**. Con eso se arman `/textos` (el mapa de textos y el perfil
-de cada sección), la sección "Texto" de cada ficha (`/post/[slug]`) y `/textos/comparar`.
+Además de las métricas, el agente sube el **texto completo de cada post**. El agente solo sube
+el texto: el análisis (compass editorial, afecto, dimensiones literarias, estilometría) lo hace
+después el worker de [`analysis/`](../analysis/README.md), en batch.
 
 Misma clave (`INGEST_API_KEY`) y mismos headers que el resto de la API.
 
 | Qué | Endpoint |
 | --- | --- |
-| Qué posts tienen texto y lectura | `GET /api/ingest/texts` (`?faltan=1` para ver solo lo pendiente) |
+| Qué posts tienen texto | `GET /api/ingest/texts` (`?faltan=1` para ver solo los que no) |
 | Subir uno o varios textos | `POST /api/ingest/texts` |
 | Comparar un texto nuevo (no se guarda) | `POST /api/textos/comparar` |
 
 ## Cuándo
 
 Después de cada carga de métricas (martes, jueves y sábado): `GET /api/ingest/texts?faltan=1`
-devuelve los posts que todavía no tienen texto (`tiene_texto: false`) o lectura
-(`tiene_analisis: false`), con su `slug`, `title` y `url`. El agente sube solo esos. Un post
-recién publicado aparece en esa lista cuando llega en el export de métricas; antes, la API no
-lo encuentra (`404`).
+devuelve los posts que todavía no tienen texto, con su `slug`, `title` y `url`. El agente sube
+solo esos. Un post recién publicado aparece en esa lista cuando llega en el export de métricas;
+antes, la API no lo encuentra (`404`).
 
 Volver a subir el mismo texto no hace nada (`"texto": "sin cambios"`). Si el texto cambió (una
-corrección después de publicar), se reemplaza.
+corrección después de publicar), se reemplaza y el worker lo vuelve a analizar.
 
 ## Identificar el post
 
@@ -152,7 +151,19 @@ Cada texto lleva al menos uno de estos campos; se prueban en este orden:
 
 Si no se encuentra, la respuesta trae `sugerencias` con los títulos más parecidos.
 
-## Formato
+## Cómo tiene que venir el texto
+
+El análisis depende de la forma del texto, así que importa:
+
+- **Texto plano en UTF-8**: sin HTML ni Markdown, sin menús, botones, pie de suscripción ni
+  comentarios. Puede llevar el título y el subtítulo al principio.
+- **Una línea en blanco entre párrafos.** El afecto y el arco emocional se miden por párrafo.
+- **Diálogos** con raya (—) al inicio de la línea, como en el original.
+- **Citas en bloque** (blockquote de Substack) con `> ` al inicio del párrafo.
+- **Comillas** tal como vienen («», “”).
+- **Versos**: cada verso en su línea y una línea en blanco entre estrofas.
+
+## Formato de la request
 
 **JSON, varios textos a la vez** (recomendado; máximo 50 por request y ~4 MB en total):
 
@@ -160,30 +171,12 @@ Si no se encuentra, la respuesta trae `sugerencias` con los títulos más pareci
 curl -X POST "$BASE/api/ingest/texts" \
   -H "Authorization: Bearer $INGEST_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{
-    "textos": [
-      {
-        "slug": "la-ciudad-que-no-duerme",
-        "texto": "Texto completo del post…",
-        "analisis": {
-          "sentimiento": -0.35,
-          "ensayistico": 0.7,
-          "personal": 0.4,
-          "politico": 0.8,
-          "intimo": 0.1,
-          "tono": "indignado",
-          "resumen": "Una crónica sobre…",
-          "temas": ["ciudad", "violencia", "memoria"],
-          "modelo": "grok-4"
-        }
-      }
-    ]
-  }'
+  -d '{"textos": [{"slug": "la-ciudad-que-no-duerme", "texto": "Texto completo…"}]}'
 ```
 
-También se acepta un solo texto sin la lista (`{"slug": "...", "texto": "...", "analisis": {...}}`).
+También se acepta un solo texto sin la lista (`{"slug": "...", "texto": "..."}`).
 
-**El .txt crudo en el body**, con el post en la query string (sin lectura):
+**El .txt crudo en el body**, con el post en la query string:
 
 ```bash
 curl -X POST "$BASE/api/ingest/texts?slug=la-ciudad-que-no-duerme" \
@@ -192,52 +185,25 @@ curl -X POST "$BASE/api/ingest/texts?slug=la-ciudad-que-no-duerme" \
   --data-binary @la-ciudad-que-no-duerme.txt
 ```
 
-**multipart/form-data** con el .txt en `file` y, opcionales, `slug`/`url`/`title` y `analisis`
-(como JSON en texto):
+**multipart/form-data** con el .txt en `file` y `slug`/`url`/`title`:
 
 ```bash
 curl -X POST "$BASE/api/ingest/texts" \
   -H "Authorization: Bearer $INGEST_API_KEY" \
   -F "slug=la-ciudad-que-no-duerme" \
-  -F "file=@la-ciudad-que-no-duerme.txt" \
-  -F 'analisis={"sentimiento":-0.35,"politico":0.8}'
+  -F "file=@la-ciudad-que-no-duerme.txt"
 ```
 
-El texto va en UTF-8, como texto plano: sin HTML ni Markdown, sin el menú ni el pie de Substack.
-Puede llevar el título y el subtítulo al principio. `?dryRun=1` (o `"dryRun": true` en el JSON)
-valida todo y dice qué post encontró, sin guardar nada.
-
-Para subir solo la lectura de un post que ya tiene texto, se manda `analisis` sin `texto`.
-
-## La lectura (`analisis`)
-
-Todos los campos son opcionales, pero tiene que venir al menos un eje. Los ejes son
-**independientes entre sí** (no tienen que sumar 1): un texto puede ser muy personal y muy
-político a la vez.
-
-| Campo | Escala | Qué mide |
-| --- | --- | --- |
-| `sentimiento` | -1 a 1 | Tono emocional general: -1 muy negativo (duelo, rabia, desesperanza), 0 neutro o mixto, 1 muy positivo (celebración, ternura, esperanza). |
-| `ensayistico` | 0 a 1 | Cuánto argumenta e interpreta: tesis, ideas, referencias, razonamiento. |
-| `personal` | 0 a 1 | Cuánto parte de la experiencia propia del autor (primera persona, anécdota, memoria). |
-| `politico` | 0 a 1 | Cuánto trata poder, Estado, gobierno, conflicto social o asuntos públicos. |
-| `intimo` | 0 a 1 | Cuánto se mete en lo privado y vulnerable: emociones, cuerpo, familia, amor, duelo. |
-| `tono` | texto corto | Una o dos palabras: "melancólico", "irónico", "indignado". |
-| `resumen` | texto | Una o dos frases. |
-| `temas` | lista | De 3 a 6 temas en minúsculas, ej. `["ciudad", "duelo"]`. |
-| `modelo` | texto | Qué modelo hizo la lectura, ej. `"grok-4"`. |
-
-Un número fuera de escala devuelve error y no se guarda nada de ese post (ni el texto). Para
-que el mapa sea comparable, conviene usar siempre el mismo modelo y el mismo prompt.
+`?dryRun=1` (o `"dryRun": true` en el JSON) valida todo y dice qué post encontró, sin guardar.
 
 ## Respuesta
 
 ```json
-{ "ok": true, "dryRun": false,
-  "summary": { "textos": 2, "guardados": 2, "fallidos": 0, "creados": 1, "actualizados": 1, "analisis": 2 },
+{ "ok": false, "dryRun": false,
+  "summary": { "textos": 2, "guardados": 1, "fallidos": 1, "creados": 1, "actualizados": 0 },
   "resultados": [
     { "ok": true, "slug": "la-ciudad-que-no-duerme", "titulo": "La ciudad que no duerme",
-      "encontradoPor": "slug", "texto": "creado", "palabras": 2310, "analisis": "guardado" },
+      "encontradoPor": "slug", "texto": "creado", "palabras": 2310 },
     { "ok": false, "referencia": { "title": "Un post que no existe" },
       "error": "No hay ningún post con ese slug, URL o título…", "sugerencias": [ … ] }
   ] }
@@ -246,25 +212,25 @@ que el mapa sea comparable, conviene usar siempre el mismo modelo y el mismo pro
 Status: `200` si entró todo, `207` si entró una parte (ver `resultados`), `404` si era un solo
 texto y no se encontró el post, `422` si era un solo texto y no era válido, `400`/`401`/`500`
 como en el resto de la API. Cada carga queda en `/subir` → **Cargas automáticas** ("Textos").
+`GET /api/ingest/texts` dice además, por post, si ya está `analizado`.
 
 ## Comparar un texto nuevo
 
 `POST /api/textos/comparar` con `{"texto": "…"}` (o el .txt crudo en el body) devuelve, sin
-guardar nada: los textos de Perpetuo más parecidos (`neighbors`, con la similitud y las palabras
-que comparten), la lectura estimada a partir de esos vecinos (`predicted`), la sección más
-probable (`categories`) y su lugar en el mapa léxico (`mapPoint`). Es lo mismo que la página
-`/textos/comparar`.
+guardar nada: los textos de Perpetuo más parecidos por vocabulario (`neighbors`), su lugar
+**estimado** en el compass a partir de esos vecinos (`estimatedCompass`) y la sección más
+probable (`categories`). Es instantáneo. El análisis completo de un borrador lo hace el worker:
+`python -m perpetuo_analysis borrador archivo.txt`.
 
 ## Instrucciones para el agente (textos)
 
 > Después de subir las métricas, pide `GET /api/ingest/texts?faltan=1` a Perpetuo Analítica con
 > el header `Authorization: Bearer <INGEST_API_KEY>`. Para cada post de la lista, abre su `url`
-> en Substack y copia el texto completo del post como texto plano (sin menús, botones, pie de
-> suscripción ni comentarios). Lee el texto y califícalo: `sentimiento` de -1 a 1; `ensayistico`,
-> `personal`, `politico` e `intimo` de 0 a 1 cada uno, de forma independiente; un `tono` de una o
-> dos palabras, un `resumen` de una o dos frases y de 3 a 6 `temas` en minúsculas; pon tu nombre
-> de modelo en `modelo`. Sube los textos en tandas de hasta 20 con
-> `POST /api/ingest/texts` en JSON (`{"textos": [{"slug": …, "texto": …, "analisis": {…}}]}`),
-> usando el `slug` exacto de la lista. Comprueba que cada resultado tenga `"ok": true`; si un post
-> da `404`, no reintentes hasta la próxima corrida. Reporta los errores con su `error`. Nunca
-> compartas la clave.
+> en Substack y copia el texto completo del post como texto plano: sin menús, botones, pie de
+> suscripción ni comentarios; una línea en blanco entre párrafos; diálogos con raya al inicio;
+> citas en bloque con `> ` al inicio; versos en su propia línea. No resumas ni corrijas nada:
+> el texto tiene que ser idéntico al publicado. Sube los textos en tandas de hasta 20 con
+> `POST /api/ingest/texts` en JSON (`{"textos": [{"slug": …, "texto": …}]}`), usando el `slug`
+> exacto de la lista. Comprueba que cada resultado tenga `"ok": true`; si un post da `404`, no
+> reintentes hasta la próxima corrida. Reporta los errores con su `error`. Nunca compartas la
+> clave.

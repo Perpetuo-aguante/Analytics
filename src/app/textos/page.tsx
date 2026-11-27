@@ -3,60 +3,18 @@ import { Suspense } from "react";
 import { FilterBar } from "@/components/filter-bar";
 import { PageHeader } from "@/components/page-header";
 import { StatTiles } from "@/components/stat-tiles";
-import { TextMap, type AxisSpec, type TextMapDatum } from "@/components/text-map";
-import { formatSentiment } from "@/components/reading-bars";
+import { BarChart, type BarDatum } from "@/components/bar-chart";
+import { TextMap, type TextMapDatum } from "@/components/text-map";
 import { getCategories, type Category } from "@/lib/categories";
-import { describeFilters, filtersToSearchParams, parseFilters, type FilterSearchParams, type Filters } from "@/lib/filters";
-import { matchPostCategories } from "@/lib/post-types";
-import { getFilteredMetrics } from "@/lib/queries";
-import { buildCorpusModel, getTextCorpus, type CorpusModel, type CorpusRow } from "@/lib/texts";
-import { READING_KEYS, READING_LABELS, STYLE_KEYS, type LexicalMap, type ReadingKey } from "@/lib/text-analysis";
-import { formatNumber } from "@/lib/display";
+import { describeFilters, parseFilters, type FilterSearchParams, type Filters } from "@/lib/filters";
+import { matchPostCategories, matchPostType } from "@/lib/post-types";
+import { anchorAlerts, CONFIDENCE_FLOOR, countPendingAnalysis, getCompassCorpus, getNorms, type CompassRow } from "@/lib/compass";
+import { THEMES, VOCAB, type VocabKey } from "@/lib/compass-vocab";
+import { formatNumber, formatPercent } from "@/lib/display";
 
 export const dynamic = "force-dynamic";
 
-// Un eje del mapa: uno de los dos del mapa léxico o una de las lecturas.
-type AxisKey = "lexico1" | "lexico2" | ReadingKey;
-const AXIS_KEYS: AxisKey[] = ["lexico1", "lexico2", ...READING_KEYS];
-
-// Vistas de un clic. El resto de las combinaciones, con los selectores.
-const PRESETS: { label: string; x: AxisKey; y: AxisKey }[] = [
-  { label: "Mapa léxico", x: "lexico1", y: "lexico2" },
-  { label: "Personal × Político", x: "personal", y: "politico" },
-  { label: "Ensayístico × Íntimo", x: "ensayistico", y: "intimo" },
-  { label: "Sentimiento × Íntimo", x: "sentimiento", y: "intimo" },
-];
-
-function parseAxis(value: string | undefined, fallback: AxisKey): AxisKey {
-  return AXIS_KEYS.includes(value as AxisKey) ? (value as AxisKey) : fallback;
-}
-
-function axisLabel(key: AxisKey): string {
-  if (key === "lexico1") return "Eje léxico 1";
-  if (key === "lexico2") return "Eje léxico 2";
-  return READING_LABELS[key];
-}
-
-function axisSpec(key: AxisKey, map: LexicalMap | null): AxisSpec {
-  if (key === "lexico1" || key === "lexico2") {
-    const axis = map?.axes[key === "lexico1" ? 0 : 1];
-    return {
-      label: `${axisLabel(key)}${axis ? ` (${Math.round(axis.explained * 100)}% de la variación)` : ""}`,
-      domain: "free",
-      lowHint: axis?.negative.slice(0, 3).join(", "),
-      highHint: axis?.positive.slice(0, 3).join(", "),
-    };
-  }
-  return { label: READING_LABELS[key], domain: key === "sentimiento" ? "signed" : "unit" };
-}
-
-function axisValue(key: AxisKey, row: CorpusRow, coords: [number, number] | undefined): number | null {
-  if (key === "lexico1") return coords?.[0] ?? null;
-  if (key === "lexico2") return coords?.[1] ?? null;
-  return row.reading?.[key] ?? null;
-}
-
-function inFilters(row: CorpusRow, filters: Filters, categories: Category[]): boolean {
+function inFilters(row: CompassRow, filters: Filters, categories: Category[]): boolean {
   if (filters.from && (!row.published_at || row.published_at < filters.from)) return false;
   if (filters.to && (!row.published_at || row.published_at > filters.to)) return false;
   if (filters.q && !row.title.toLowerCase().includes(filters.q.toLowerCase())) return false;
@@ -71,69 +29,94 @@ function mean(values: (number | null | undefined)[]): number | null {
   return present.length > 0 ? present.reduce((a, b) => a + b, 0) / present.length : null;
 }
 
-export default async function TextosPage({
-  searchParams,
-}: {
-  searchParams: Promise<FilterSearchParams & { x?: string; y?: string }>;
-}) {
+// Conteo por valor de un campo de vocabulario cerrado, en el orden del
+// vocabulario (no por frecuencia: así el mismo valor está siempre en el
+// mismo lugar al cambiar el recorte).
+function distribution(rows: CompassRow[], vocab: VocabKey, get: (r: CompassRow) => string | null): BarDatum[] {
+  return VOCAB[vocab]
+    .map((value) => ({ label: value, value: rows.filter((r) => get(r) === value).length }))
+    .filter((d) => d.value > 0);
+}
+
+const DISTRIBUTIONS: { title: string; vocab: VocabKey; get: (r: CompassRow) => string | null; note?: string }[] = [
+  { title: "Narrador", vocab: "narrador", get: (r) => r.narrador, note: "Genette" },
+  { title: "Tesis", vocab: "tesis", get: (r) => r.tesis },
+  { title: "Estructura argumentativa", vocab: "estructura", get: (r) => r.estructura },
+  { title: "Polo figurativo", vocab: "polo_dominante", get: (r) => r.polo_dominante, note: "Jakobson" },
+  { title: "Orden temporal", vocab: "orden_temporal", get: (r) => r.orden_temporal },
+  { title: "Apertura", vocab: "tipo_gancho", get: (r) => r.tipo_gancho },
+  { title: "Cierre", vocab: "cierre", get: (r) => r.cierre },
+  { title: "Arco emocional", vocab: "arco", get: (r) => r.arco, note: "Reagan et al. 2016" },
+  { title: "Emoción principal", vocab: "emocion_dominante", get: (r) => r.emocion_principal, note: "la de más texto" },
+  { title: "Distancia afectiva", vocab: "distancia_afectiva", get: (r) => r.distancia_afectiva },
+];
+
+const QUADRANTS = [
+  { key: "rs", label: "Referencial · subjetivo", test: (r: CompassRow) => r.compass_x < 50 && r.compass_y >= 50 },
+  { key: "ps", label: "Poético · subjetivo", test: (r: CompassRow) => r.compass_x >= 50 && r.compass_y >= 50 },
+  { key: "ri", label: "Referencial · impersonal", test: (r: CompassRow) => r.compass_x < 50 && r.compass_y < 50 },
+  { key: "pi", label: "Poético · impersonal", test: (r: CompassRow) => r.compass_x >= 50 && r.compass_y < 50 },
+];
+
+export default async function TextosPage({ searchParams }: { searchParams: Promise<FilterSearchParams> }) {
   const params = await searchParams;
   const categories = await getCategories();
   const filters = parseFilters(params, categories);
-  const xKey = parseAxis(params.x, "lexico1");
-  const yKey = parseAxis(params.y, "lexico2");
 
-  const [corpusRows, metricRows] = await Promise.all([getTextCorpus(), getFilteredMetrics(filters, categories)]);
-  // El mapa se calcula sobre TODOS los textos y el filtro solo elige qué
-  // puntos se ven: así un texto no cambia de lugar al cambiar el recorte.
-  const model: CorpusModel = buildCorpusModel(corpusRows, categories);
-  const coordsById = new Map(model.map?.ids.map((id, i) => [id, model.map!.coords[i]]) ?? []);
-  const rows = corpusRows.filter((r) => inFilters(r, filters, categories));
-  const analyzed = rows.filter((r) => r.reading);
+  const [corpus, norms, pending] = await Promise.all([getCompassCorpus(), getNorms(), countPendingAnalysis()]);
+  const rows = corpus.filter((r) => inFilters(r, filters, categories));
 
   const points: TextMapDatum[] = [];
+  let lowConfidence = 0;
+  let alerted = 0;
   for (const row of rows) {
-    const category = model.categoryById.get(row.post_id);
-    const x = axisValue(xKey, row, coordsById.get(row.post_id));
-    const y = axisValue(yKey, row, coordsById.get(row.post_id));
-    if (!category || x == null || y == null) continue;
-    points.push({ id: row.post_id, slug: row.slug, title: row.title, category, x, y });
+    const category = matchPostType(row.post_type, categories);
+    if (!category) continue;
+    const alerts = anchorAlerts(row, norms);
+    const weak =
+      Math.min(row.compass_x_confianza, row.compass_y_confianza) < CONFIDENCE_FLOOR ||
+      row.campos_evidencia_invalida.some((c) => c === "eje_x" || c === "eje_y");
+    if (weak) lowConfidence++;
+    if (alerts.length > 0) alerted++;
+    points.push({
+      id: row.post_id,
+      slug: row.slug,
+      title: row.title,
+      category,
+      x: row.compass_x / 100,
+      y: row.compass_y / 100,
+      faded: weak,
+      note: [weak ? "Confianza baja o evidencia inválida en un eje." : null, ...alerts].filter(Boolean).join(" ") || undefined,
+    });
   }
 
-  const usesReading = [xKey, yKey].some((k) => k !== "lexico1" && k !== "lexico2");
-  const withText = new Set(corpusRows.map((r) => r.post_id));
-  const missing = metricRows.filter((m) => !withText.has(m.post_id)).length;
+  const themeWeights = new Map<string, number>();
+  for (const row of rows) for (const t of row.temas) themeWeights.set(t.tema, (themeWeights.get(t.tema) ?? 0) + t.peso);
+  const themes: BarDatum[] = [...themeWeights.entries()]
+    .map(([tema, peso]) => ({ label: THEMES[tema] ?? tema, value: peso }))
+    .sort((a, b) => b.value - a.value);
 
-  // Perfil de cada sección: el promedio de cada eje entre sus textos leídos.
   const profiles = categories
     .map((category) => {
-      const members = analyzed.filter((r) =>
+      const members = rows.filter((r) =>
         matchPostCategories(r.post_type, r.extra_post_types, categories).some((c) => c.id === category.id)
       );
       return {
         category,
         count: members.length,
-        means: Object.fromEntries(READING_KEYS.map((k) => [k, mean(members.map((m) => m.reading?.[k]))])) as Record<
-          ReadingKey,
-          number | null
-        >,
+        x: mean(members.map((m) => m.compass_x)),
+        y: mean(members.map((m) => m.compass_y)),
+        dificultad: mean(members.map((m) => m.dificultad)),
+        valencia: mean(members.map((m) => m.valencia_media)),
       };
     })
     .filter((p) => p.count > 0);
 
-  const filterParams = filtersToSearchParams(filters, categories);
-  const hrefFor = (x: AxisKey, y: AxisKey) => {
-    const p = new URLSearchParams(filterParams);
-    if (x !== "lexico1") p.set("x", x);
-    if (y !== "lexico2") p.set("y", y);
-    const qs = p.toString();
-    return qs ? `/textos?${qs}` : "/textos";
-  };
-
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">
       <PageHeader
-        title="Textos"
-        description="Qué tipo de texto es cada post: su estilo (ensayístico, personal, político, íntimo), su sentimiento y a qué otros textos de Perpetuo se parece. Cada punto es un texto completo."
+        title="Compass editorial"
+        description="Cada post en dos ejes: referencial ↔ poético (¿apunta al mundo o a su propio lenguaje?) e impersonal ↔ subjetivo (¿cuánto está construido desde el yo que enuncia?). Debajo, su perfil literario y afectivo, y cómo rinde cada zona del plano."
         scope={describeFilters(filters)}
       />
 
@@ -144,156 +127,153 @@ export default async function TextosPage({
       <div className="rise rise-1">
         <StatTiles
           tiles={[
+            { label: "Posts analizados", value: formatNumber(rows.length), hint: `${formatNumber(pending.texts)} textos cargados en total` },
             {
-              label: "Textos cargados",
-              value: formatNumber(rows.length),
-              hint: missing > 0 ? `${formatNumber(missing)} posts del recorte sin texto` : "todos los posts del recorte",
+              label: "Pendientes de análisis",
+              value: formatNumber(pending.pending),
+              hint: "textos nuevos o cambiados; los procesa el worker",
             },
-            { label: "Con lectura de estilo", value: formatNumber(analyzed.length) },
-            { label: "Palabras (prom.)", value: formatNumber(mean(rows.map((r) => r.word_count))) },
-            {
-              label: "Sentimiento (prom.)",
-              value: (() => {
-                const m = mean(analyzed.map((r) => r.reading?.sentimiento));
-                return m == null ? "—" : formatSentiment(m);
-              })(),
-            },
+            { label: "Confianza baja", value: formatNumber(lowConfidence), hint: "puntos atenuados en el compass" },
+            { label: "Alertas de anclaje", value: formatNumber(alerted), hint: "el LLM contradice la estilometría" },
           ]}
         />
       </div>
 
-      {corpusRows.length === 0 ? (
+      {corpus.length === 0 ? (
         <p className="panel p-8 text-sm text-ink-muted">
-          Todavía no hay textos cargados. El agente los sube por <code>POST /api/ingest/texts</code> (ver
-          docs/ingest-api.md).
+          Todavía no hay posts analizados. El agente sube los textos a <code>POST /api/ingest/texts</code> y el worker
+          (<code>analysis/</code>) los analiza en batch.
         </p>
       ) : (
         <div className="space-y-6">
           <section className="panel rise rise-2 p-5 sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <h2 className="font-display text-lg font-semibold">Mapa de textos</h2>
+                <h2 className="font-display text-lg font-semibold">El compass</h2>
                 <p className="mt-1 max-w-2xl text-sm text-ink-secondary">
-                  {xKey.startsWith("lexico") && yKey.startsWith("lexico")
-                    ? "Textos cerca = textos que usan las mismas palabras poco comunes. Los ejes no tienen nombre propio: las palabras de cada extremo dicen qué los separa."
-                    : "Cada eje es la lectura que hizo el agente de cada texto. Solo aparecen los textos que ya tienen esa lectura."}
+                  Scores de 0 a 100 según las rúbricas de cada eje. Los puntos atenuados tienen confianza menor a{" "}
+                  {Math.round(CONFIDENCE_FLOOR * 100)}% o una cita de evidencia que no existe en el texto. Pasa el
+                  cursor para ver las alertas.
                 </p>
               </div>
-              <Link href={`/textos/comparar`} className="btn-primary shrink-0 px-4 py-2 text-sm">
+              <Link href="/textos/comparar" className="btn-primary shrink-0 px-4 py-2 text-sm">
                 Comparar un texto nuevo
               </Link>
             </div>
-
-            <ul className="mb-4 mt-4 flex flex-wrap gap-2 text-sm">
-              {PRESETS.map((preset) => {
-                const active = preset.x === xKey && preset.y === yKey;
-                return (
-                  <li key={preset.label}>
-                    <Link href={hrefFor(preset.x, preset.y)} aria-current={active ? "true" : undefined} data-active={active} className="chip">
-                      {preset.label}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-            <form method="get" action="/textos" className="mb-5 flex flex-wrap items-end gap-3 text-sm">
-              {[...filterParams.entries()].map(([key, value]) => (
-                <input key={key} type="hidden" name={key} value={value} />
-              ))}
-              <label className="flex flex-col gap-1">
-                <span className="text-xs text-ink-muted">Eje horizontal</span>
-                <select name="x" defaultValue={xKey} className="field">
-                  {AXIS_KEYS.map((k) => (
-                    <option key={k} value={k}>
-                      {axisLabel(k)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-xs text-ink-muted">Eje vertical</span>
-                <select name="y" defaultValue={yKey} className="field">
-                  {AXIS_KEYS.map((k) => (
-                    <option key={k} value={k}>
-                      {axisLabel(k)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button type="submit" className="chip">
-                Ver
-              </button>
-            </form>
-
-            {points.length === 0 ? (
-              <p className="text-sm text-ink-muted">
-                {usesReading
-                  ? "Ningún texto del recorte tiene todavía la lectura de estilo que piden estos ejes."
-                  : "Hacen falta al menos 3 textos para armar el mapa léxico."}
-              </p>
-            ) : (
-              <TextMap data={points} categories={categories} x={axisSpec(xKey, model.map)} y={axisSpec(yKey, model.map)} />
-            )}
+            <div className="mt-5">
+              <TextMap
+                data={points}
+                categories={categories}
+                midlines
+                x={{ label: "Referencial ↔ Poético", domain: "unit", lowHint: "referencial", highHint: "poético" }}
+                y={{ label: "Impersonal ↔ Subjetivo", domain: "unit", lowHint: "impersonal", highHint: "subjetivo" }}
+              />
+            </div>
           </section>
 
-          {profiles.length > 0 && (
-            <section className="panel rise rise-3 p-5 sm:p-6">
-              <h2 className="font-display text-lg font-semibold">Perfil de cada sección</h2>
-              <p className="mb-5 mt-1 text-sm text-ink-secondary">
-                Promedio de cada eje entre los textos leídos de la sección. Estilo de 0 a 100; sentimiento de −1 a +1.
-              </p>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[560px] border-collapse text-sm">
-                  <thead>
-                    <tr className="border-b border-line text-left text-ink-muted">
-                      <th className="px-2 py-2 font-medium">Sección</th>
-                      <th className="px-2 py-2 text-right font-medium">Textos</th>
-                      {READING_KEYS.map((k) => (
-                        <th key={k} className="px-2 py-2 text-right font-medium">
-                          {READING_LABELS[k]}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {profiles.map((p) => (
-                      <tr key={p.category.id} className="border-b border-line/60">
-                        <td className="px-2 py-2">
-                          <span className="mr-2 inline-block h-2 w-2 rounded-full" style={{ background: p.category.color }} aria-hidden />
-                          {p.category.name}
-                        </td>
-                        <td className="tnum px-2 py-2 text-right">{p.count}</td>
-                        {STYLE_KEYS.map((k) => (
-                          <td key={k} className="tnum px-2 py-2 text-right">
-                            <StyleCell value={p.means[k]} />
-                          </td>
-                        ))}
+          <section className="panel rise rise-3 p-5 sm:p-6">
+            <h2 className="font-display text-lg font-semibold">Cómo rinde cada cuadrante</h2>
+            <p className="mb-5 mt-1 text-sm text-ink-secondary">
+              Promedio de las métricas más recientes de los posts de cada zona del compass. Es una correlación, no una
+              causa: cada cuadrante mezcla secciones, fechas y temas distintos.
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[560px] border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-line text-left text-ink-muted">
+                    <th className="px-2 py-2 font-medium">Cuadrante</th>
+                    <th className="px-2 py-2 text-right font-medium">Posts</th>
+                    <th className="px-2 py-2 text-right font-medium">Views</th>
+                    <th className="px-2 py-2 text-right font-medium">Open rate</th>
+                    <th className="px-2 py-2 text-right font-medium">Engagement</th>
+                    <th className="px-2 py-2 text-right font-medium">Nuevos suscriptores</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {QUADRANTS.map((q) => {
+                    const members = rows.filter(q.test);
+                    return (
+                      <tr key={q.key} className="border-b border-line/60">
+                        <td className="px-2 py-2">{q.label}</td>
+                        <td className="tnum px-2 py-2 text-right">{members.length}</td>
+                        <td className="tnum px-2 py-2 text-right">{formatNumber(mean(members.map((m) => m.views)))}</td>
+                        <td className="tnum px-2 py-2 text-right">{formatPercent(mean(members.map((m) => m.open_rate)))}</td>
+                        <td className="tnum px-2 py-2 text-right">{formatPercent(mean(members.map((m) => m.engagement)))}</td>
                         <td className="tnum px-2 py-2 text-right">
-                          {p.means.sentimiento == null ? "—" : formatSentiment(p.means.sentimiento)}
+                          {formatNumber(mean(members.map((m) => m.new_subscribers)))}
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className="panel rise rise-3 p-5 sm:p-6">
+            <h2 className="font-display text-lg font-semibold">Perfil de cada sección</h2>
+            <p className="mb-5 mt-1 text-sm text-ink-secondary">
+              Promedios de los posts analizados de cada sección. Valencia de −1 a +1 (baseline de pysentimiento).
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[520px] border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-line text-left text-ink-muted">
+                    <th className="px-2 py-2 font-medium">Sección</th>
+                    <th className="px-2 py-2 text-right font-medium">Posts</th>
+                    <th className="px-2 py-2 text-right font-medium">Poético (X)</th>
+                    <th className="px-2 py-2 text-right font-medium">Subjetivo (Y)</th>
+                    <th className="px-2 py-2 text-right font-medium">Dificultad</th>
+                    <th className="px-2 py-2 text-right font-medium">Valencia</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {profiles.map((p) => (
+                    <tr key={p.category.id} className="border-b border-line/60">
+                      <td className="px-2 py-2">
+                        <span className="mr-2 inline-block h-2 w-2 rounded-full" style={{ background: p.category.color }} aria-hidden />
+                        {p.category.name}
+                      </td>
+                      <td className="tnum px-2 py-2 text-right">{p.count}</td>
+                      <td className="tnum px-2 py-2 text-right">{p.x == null ? "—" : Math.round(p.x)}</td>
+                      <td className="tnum px-2 py-2 text-right">{p.y == null ? "—" : Math.round(p.y)}</td>
+                      <td className="tnum px-2 py-2 text-right">{p.dificultad == null ? "—" : p.dificultad.toFixed(1)}</td>
+                      <td className="tnum px-2 py-2 text-right">{p.valencia == null ? "—" : signed(p.valencia)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className="panel rise rise-4 p-5 sm:p-6">
+            <h2 className="font-display text-lg font-semibold">Temas</h2>
+            <p className="mb-5 mt-1 text-sm text-ink-secondary">
+              Suma del peso de cada tema en los posts del recorte (un post aporta, en total, hasta 1 por tema). Lo
+              político vive aquí, no en los ejes.
+            </p>
+            <BarChart data={themes} />
+          </section>
+
+          <section className="rise rise-4 grid gap-6 md:grid-cols-2">
+            {DISTRIBUTIONS.map((d) => (
+              <div key={d.title} className="panel p-5">
+                <h2 className="font-display text-base font-semibold">
+                  {d.title}
+                  {d.note && <span className="ml-2 text-xs font-normal text-ink-muted">{d.note}</span>}
+                </h2>
+                <div className="mt-4">
+                  <BarChart data={distribution(rows, d.vocab, d.get)} />
+                </div>
               </div>
-            </section>
-          )}
+            ))}
+          </section>
         </div>
       )}
     </main>
   );
 }
 
-// Número con una barrita debajo: la tabla se lee como tabla y, de un
-// vistazo, como gráfico.
-function StyleCell({ value }: { value: number | null }) {
-  if (value == null) return <>—</>;
-  return (
-    <span className="inline-flex flex-col items-end gap-1">
-      {Math.round(value * 100)}
-      <span className="block h-1 w-12 overflow-hidden rounded-full bg-surface-sunk" aria-hidden>
-        <span className="block h-full rounded-full bg-blue" style={{ width: `${value * 100}%` }} />
-      </span>
-    </span>
-  );
+function signed(v: number): string {
+  return v > 0 ? `+${v.toFixed(2)}` : v.toFixed(2);
 }

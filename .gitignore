@@ -40,3 +40,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .neon
+
+# worker de Python (analysis/)
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/

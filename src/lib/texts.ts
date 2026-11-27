@@ -1,11 +1,12 @@
-// Textos completos de los posts y su lectura de estilo/sentimiento (tablas
-// post_texts y post_text_analyses). Los usan la API de ingesta
-// (app/api/ingest/texts), la ficha de cada post, /textos y /textos/comparar.
+// Textos completos de los posts (tabla post_texts) y su similitud léxica.
+// Los usan la API de ingesta (app/api/ingest/texts), la ficha de cada post,
+// /textos y /textos/comparar. El análisis literario (compass, afecto,
+// dimensiones) lo escribe el worker de analysis/ y se lee en lib/compass.ts.
 // Solo servidor.
 
 import { createHash } from "node:crypto";
 import { query, queryOne } from "./db";
-import type { Post, PostText, PostTextAnalysis } from "./db-types";
+import type { Post, PostText } from "./db-types";
 import { deriveSlug, slugify } from "./format";
 import { similarity } from "./dedupe";
 import { DUPLICATE_SIMILARITY_THRESHOLD } from "./imports/posts";
@@ -13,19 +14,14 @@ import { matchPostType } from "./post-types";
 import type { Category } from "./categories";
 import {
   buildCorpus,
-  buildLexicalMap,
   countWords,
   nearestNeighbors,
   normalizeText,
   predictCategory,
-  predictReading,
-  projectOntoMap,
-  READING_KEYS,
   termCounts,
   vectorize,
+  weightedEstimate,
   type Corpus,
-  type LexicalMap,
-  type Reading,
 } from "./text-analysis";
 
 // Tope de tamaño de un texto: muy por encima de cualquier post real (una
@@ -137,126 +133,12 @@ export async function savePostText(
   return { status: existing ? "actualizado" : "creado", wordCount };
 }
 
-export type AnalysisInput = {
-  sentimiento: number | null;
-  ensayistico: number | null;
-  personal: number | null;
-  politico: number | null;
-  intimo: number | null;
-  tono: string | null;
-  resumen: string | null;
-  temas: string[];
-  modelo: string | null;
-};
-
-// Valida la lectura que manda el agente. Los ejes son opcionales uno por uno
-// (puede mandar solo algunos), pero si vienen, tienen que estar en escala.
-// Lanza Error con un mensaje que el agente pueda entender y corregir.
-export function parseAnalysis(input: unknown): AnalysisInput {
-  if (input == null || typeof input !== "object" || Array.isArray(input)) {
-    throw new Error("`analisis` debe ser un objeto, ej. {\"sentimiento\": -0.2, \"personal\": 0.8}.");
-  }
-  const raw = input as Record<string, unknown>;
-  const known = new Set<string>([...READING_KEYS, "tono", "resumen", "temas", "modelo"]);
-  const unknown = Object.keys(raw).filter((k) => !known.has(k));
-  if (unknown.length > 0) {
-    throw new Error(`Campos desconocidos en \`analisis\`: ${unknown.join(", ")}. Válidos: ${[...known].join(", ")}.`);
-  }
-
-  const num = (key: string, min: number, max: number): number | null => {
-    const value = raw[key];
-    if (value == null || value === "") return null;
-    const n = typeof value === "number" ? value : Number(value);
-    if (!Number.isFinite(n) || n < min || n > max) {
-      throw new Error(`\`analisis.${key}\` debe ser un número entre ${min} y ${max} (llegó ${JSON.stringify(value)}).`);
-    }
-    return Math.round(n * 1000) / 1000;
-  };
-  const str = (key: string, max: number): string | null => {
-    const value = raw[key];
-    if (value == null) return null;
-    if (typeof value !== "string") throw new Error(`\`analisis.${key}\` debe ser texto.`);
-    return value.trim().slice(0, max) || null;
-  };
-
-  let temas: string[] = [];
-  if (raw.temas != null) {
-    if (!Array.isArray(raw.temas) || raw.temas.some((t) => typeof t !== "string")) {
-      throw new Error("`analisis.temas` debe ser una lista de textos, ej. [\"duelo\", \"ciudad\"].");
-    }
-    temas = Array.from(new Set((raw.temas as string[]).map((t) => t.trim().toLowerCase()).filter(Boolean))).slice(0, 12);
-  }
-
-  const result: AnalysisInput = {
-    sentimiento: num("sentimiento", -1, 1),
-    ensayistico: num("ensayistico", 0, 1),
-    personal: num("personal", 0, 1),
-    politico: num("politico", 0, 1),
-    intimo: num("intimo", 0, 1),
-    tono: str("tono", 60),
-    resumen: str("resumen", 600),
-    temas,
-    modelo: str("modelo", 80),
-  };
-  if (READING_KEYS.every((k) => result[k] == null)) {
-    throw new Error(`\`analisis\` no trae ningún eje: hace falta al menos uno de ${READING_KEYS.join(", ")}.`);
-  }
-  return result;
-}
-
-// La lectura es de un texto: si llega sola (sin `texto` en la misma carga),
-// el post ya tiene que tener su texto guardado.
-export async function saveAnalysisOrThrow(
-  postId: string,
-  analysis: AnalysisInput,
-  opts: { requireText: boolean }
-): Promise<void> {
-  if (opts.requireText) {
-    const existing = await queryOne("select 1 from post_texts where post_id = $1", [postId]);
-    if (!existing) throw new Error("Este post todavía no tiene texto: manda `texto` junto con `analisis`.");
-  }
-  await savePostAnalysis(postId, analysis);
-}
-
-export async function savePostAnalysis(postId: string, analysis: AnalysisInput): Promise<void> {
-  await query(
-    `insert into post_text_analyses
-       (post_id, sentimiento, ensayistico, personal, politico, intimo, tono, resumen, temas, modelo)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-     on conflict (post_id) do update set
-       sentimiento = excluded.sentimiento, ensayistico = excluded.ensayistico, personal = excluded.personal,
-       politico = excluded.politico, intimo = excluded.intimo, tono = excluded.tono, resumen = excluded.resumen,
-       temas = excluded.temas, modelo = excluded.modelo, analyzed_at = now()`,
-    [
-      postId,
-      analysis.sentimiento,
-      analysis.ensayistico,
-      analysis.personal,
-      analysis.politico,
-      analysis.intimo,
-      analysis.tono,
-      analysis.resumen,
-      analysis.temas,
-      analysis.modelo,
-    ]
-  );
-}
-
 // ─────────────────────────────────────────────
 // Leer
 // ─────────────────────────────────────────────
 
 export function getPostText(postId: string): Promise<PostText | null> {
   return queryOne<PostText>("select * from post_texts where post_id = $1", [postId]);
-}
-
-export function getPostAnalysis(postId: string): Promise<PostTextAnalysis | null> {
-  return queryOne<PostTextAnalysis>("select * from post_text_analyses where post_id = $1", [postId]);
-}
-
-export function analysisToReading(a: Pick<PostTextAnalysis, (typeof READING_KEYS)[number]> | null): Reading | null {
-  if (!a) return null;
-  return Object.fromEntries(READING_KEYS.map((k) => [k, a[k]])) as Reading;
 }
 
 export type TextStatus = {
@@ -266,7 +148,8 @@ export type TextStatus = {
   published_at: string | null;
   post_type: string | null;
   tiene_texto: boolean;
-  tiene_analisis: boolean;
+  // Si el worker ya hizo el análisis literario de la versión actual del texto.
+  analizado: boolean;
   palabras: number | null;
   hash: string | null;
   texto_actualizado: string | null;
@@ -278,17 +161,18 @@ export function listTextStatus(): Promise<TextStatus[]> {
   return query<TextStatus>(
     `select p.slug, p.title, p.url, p.published_at, p.post_type,
             t.post_id is not null as tiene_texto,
-            a.post_id is not null as tiene_analisis,
+            coalesce(l.content_hash = t.content_hash, false) as analizado,
             t.word_count as palabras, t.content_hash as hash, t.updated_at as texto_actualizado
      from posts p
      left join post_texts t on t.post_id = p.id
-     left join post_text_analyses a on a.post_id = p.id
+     left join post_literary l on l.post_id = p.id
      order by p.published_at desc nulls last, p.title`
   );
 }
 
-// Un texto del corpus: identidad del post, huella léxica y lectura. Sin el
-// cuerpo del texto, que no hace falta para comparar y pesa mucho.
+// Un texto del corpus: identidad del post, huella léxica y, si ya pasó por
+// el worker, su lugar en el compass. Sin el cuerpo del texto, que no hace
+// falta para comparar y pesa mucho.
 export type CorpusRow = {
   post_id: string;
   slug: string;
@@ -298,36 +182,19 @@ export type CorpusRow = {
   extra_post_types: string[];
   word_count: number;
   term_counts: Record<string, number>;
-  reading: Reading | null;
-  tono: string | null;
+  compass_x: number | null;
+  compass_y: number | null;
 };
 
-type CorpusQueryRow = Omit<CorpusRow, "reading"> &
-  Pick<PostTextAnalysis, (typeof READING_KEYS)[number]> & { has_analysis: boolean };
-
-export async function getTextCorpus(): Promise<CorpusRow[]> {
-  const rows = await query<CorpusQueryRow>(
+export function getTextCorpus(): Promise<CorpusRow[]> {
+  return query<CorpusRow>(
     `select p.id as post_id, p.slug, p.title, p.published_at, p.post_type, p.extra_post_types,
-            t.word_count, t.term_counts,
-            a.post_id is not null as has_analysis,
-            a.sentimiento, a.ensayistico, a.personal, a.politico, a.intimo, a.tono
+            t.word_count, t.term_counts, l.compass_x, l.compass_y
      from post_texts t
      join posts p on p.id = t.post_id
-     left join post_text_analyses a on a.post_id = t.post_id
+     left join post_literary l on l.post_id = t.post_id
      order by p.published_at desc nulls last`
   );
-  return rows.map((r) => ({
-    post_id: r.post_id,
-    slug: r.slug,
-    title: r.title,
-    published_at: r.published_at,
-    post_type: r.post_type,
-    extra_post_types: r.extra_post_types,
-    word_count: r.word_count,
-    term_counts: r.term_counts,
-    reading: r.has_analysis ? analysisToReading(r) : null,
-    tono: r.tono,
-  }));
 }
 
 export type CorpusModel = {
@@ -337,17 +204,14 @@ export type CorpusModel = {
   // (post_type trae alias históricos, ver lib/post-types.ts).
   categoryById: Map<string, Category | null>;
   corpus: Corpus;
-  map: LexicalMap | null;
 };
 
-export function buildCorpusModel(rows: CorpusRow[], categories: Category[], withMap = true): CorpusModel {
-  const corpus = buildCorpus(rows.map((r) => ({ id: r.post_id, terms: r.term_counts })));
+export function buildCorpusModel(rows: CorpusRow[], categories: Category[]): CorpusModel {
   return {
     rows,
     byId: new Map(rows.map((r) => [r.post_id, r])),
     categoryById: new Map(rows.map((r) => [r.post_id, matchPostType(r.post_type, categories)])),
-    corpus,
-    map: withMap ? buildLexicalMap(corpus) : null,
+    corpus: buildCorpus(rows.map((r) => ({ id: r.post_id, terms: r.term_counts }))),
   };
 }
 
@@ -357,76 +221,67 @@ export type SimilarText = {
   category: string | null;
   similarity: number;
   sharedTerms: string[];
+  compass_x: number | null;
+  compass_y: number | null;
 };
+
+function toSimilar(model: CorpusModel, n: { id: string; similarity: number; sharedTerms: string[] }): SimilarText {
+  const row = model.byId.get(n.id)!;
+  return {
+    slug: row.slug,
+    title: row.title,
+    category: model.categoryById.get(n.id)?.name ?? row.post_type,
+    similarity: n.similarity,
+    sharedTerms: n.sharedTerms,
+    compass_x: row.compass_x,
+    compass_y: row.compass_y,
+  };
+}
 
 // Los textos del corpus más parecidos a uno que ya está en él.
 export function similarToPost(model: CorpusModel, postId: string, k = 5): SimilarText[] {
   const index = model.corpus.ids.indexOf(postId);
   if (index < 0) return [];
-  return nearestNeighbors(model.corpus, model.corpus.vectors[index], k, postId).map((n) => {
-    const row = model.byId.get(n.id)!;
-    return {
-      slug: row.slug,
-      title: row.title,
-      category: model.categoryById.get(n.id)?.name ?? row.post_type,
-      similarity: n.similarity,
-      sharedTerms: n.sharedTerms,
-    };
-  });
+  return nearestNeighbors(model.corpus, model.corpus.vectors[index], k, postId).map((n) => toSimilar(model, n));
 }
 
-// Cuántos vecinos se promedian para estimar la lectura de un texto nuevo.
-const PREDICTION_NEIGHBORS = 7;
+// Cuántos vecinos se promedian para estimar la posición de un borrador.
+const ESTIMATE_NEIGHBORS = 7;
 
 export type DraftComparison = {
   wordCount: number;
   // Palabras del borrador que más lo distinguen del corpus.
   keyTerms: string[];
   neighbors: SimilarText[];
-  predicted: Reading;
-  // Cuántos de los vecinos usados tenían lectura (si es 0, no hay predicción).
-  predictedFrom: number;
+  // Posición estimada en el compass: promedio de la de sus vecinos léxicos.
+  // Es una aproximación instantánea; el análisis real lo hace el worker
+  // (`python -m perpetuo_analysis borrador`).
+  estimatedCompass: { x: number; y: number } | null;
+  // Cuántos de los vecinos usados ya tenían compass.
+  estimatedFrom: number;
   // Similitud media con los vecinos: qué tan "conocido" es el terreno.
   confidence: number;
   categories: { category: string; share: number }[];
-  mapPoint: [number, number] | null;
 };
 
-// Compara un texto nuevo (que no está en la base) con todo el corpus: a qué
-// textos se parece, dónde caería en el mapa léxico y qué lectura de estilo y
-// sentimiento tendría, estimada a partir de sus vecinos.
 export function compareDraft(model: CorpusModel, raw: string): DraftComparison {
   const body = normalizeText(raw);
-  const terms = termCounts(body);
-  const vector = vectorize(model.corpus, terms);
-  const neighbors = nearestNeighbors(model.corpus, vector, Math.max(PREDICTION_NEIGHBORS, 10));
-  const withRows = neighbors.map((n) => ({
-    ...n,
-    row: model.byId.get(n.id)!,
-    category: model.categoryById.get(n.id)?.name ?? model.byId.get(n.id)!.post_type,
-  }));
-  const forPrediction = withRows.slice(0, PREDICTION_NEIGHBORS);
-
-  const keyTerms = [...vector.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 10)
-    .map(([term]) => term);
+  const vector = vectorize(model.corpus, termCounts(body));
+  const neighbors = nearestNeighbors(model.corpus, vector, 10).map((n) => toSimilar(model, n));
+  const forEstimate = neighbors.slice(0, ESTIMATE_NEIGHBORS);
+  const x = weightedEstimate(forEstimate.map((n) => ({ similarity: n.similarity, value: n.compass_x })));
+  const y = weightedEstimate(forEstimate.map((n) => ({ similarity: n.similarity, value: n.compass_y })));
 
   return {
     wordCount: countWords(body),
-    keyTerms,
-    neighbors: withRows.map((n) => ({
-      slug: n.row.slug,
-      title: n.row.title,
-      category: n.category,
-      similarity: n.similarity,
-      sharedTerms: n.sharedTerms,
-    })),
-    predicted: predictReading(forPrediction.map((n) => ({ similarity: n.similarity, reading: n.row.reading }))),
-    predictedFrom: forPrediction.filter((n) => n.row.reading).length,
-    confidence:
-      forPrediction.length > 0 ? forPrediction.reduce((acc, n) => acc + n.similarity, 0) / forPrediction.length : 0,
-    categories: predictCategory(forPrediction.map((n) => ({ similarity: n.similarity, category: n.category }))),
-    mapPoint: model.map ? projectOntoMap(model.map, model.corpus, vector) : null,
+    keyTerms: [...vector.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([term]) => term),
+    neighbors,
+    estimatedCompass: x != null && y != null ? { x, y } : null,
+    estimatedFrom: forEstimate.filter((n) => n.compass_x != null).length,
+    confidence: forEstimate.length > 0 ? forEstimate.reduce((acc, n) => acc + n.similarity, 0) / forEstimate.length : 0,
+    categories: predictCategory(forEstimate.map((n) => ({ similarity: n.similarity, category: n.category }))),
   };
 }

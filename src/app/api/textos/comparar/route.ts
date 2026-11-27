@@ -5,7 +5,7 @@ import { buildCorpusModel, compareDraft, getTextCorpus, MAX_TEXT_CHARS } from "@
 
 // POST /api/textos/comparar — lo mismo que /textos/comparar, por HTTP: dado un
 // texto nuevo (que no se guarda), devuelve a qué textos de Perpetuo se parece,
-// la lectura de estilo y sentimiento estimada y la sección más probable.
+// su lugar estimado en el compass y la sección más probable.
 // Usa la misma clave que la API de ingesta (INGEST_API_KEY). Ver
 // docs/ingest-api.md → "Comparar un texto nuevo".
 export const dynamic = "force-dynamic";
@@ -26,6 +26,6 @@ export async function POST(request: NextRequest) {
 
   const [rows, categories] = await Promise.all([getTextCorpus(), getCategories()]);
   if (rows.length === 0) return NextResponse.json({ ok: false, error: "Todavía no hay textos cargados para comparar." }, { status: 409 });
-  const comparison = compareDraft(buildCorpusModel(rows, categories, false), text);
+  const comparison = compareDraft(buildCorpusModel(rows, categories), text);
   return NextResponse.json({ ok: true, corpus: rows.length, ...comparison });
 }

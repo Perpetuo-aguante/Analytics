@@ -1,0 +1,23 @@
+# Pruebas del worker (sin red ni modelos pesados: no instala spaCy models,
+# torch ni pysentimiento; esas partes se prueban con datos falsos).
+name: Pruebas del análisis
+
+on:
+  push:
+    paths: ["analysis/**", "db/schema.sql", "src/lib/compass-vocab.ts", ".github/workflows/analysis-tests.yml"]
+  pull_request:
+    paths: ["analysis/**", "db/schema.sql", "src/lib/compass-vocab.ts", ".github/workflows/analysis-tests.yml"]
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: analysis
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install "pydantic>=2.7,<3" pytest
+      - run: python -m pytest -q

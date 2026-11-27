@@ -186,189 +186,21 @@ export function nearestNeighbors(corpus: Corpus, vector: SparseVector, k: number
 }
 
 // ─────────────────────────────────────────────
-// Mapa léxico: PCA de kernel sobre la matriz de similitudes
+// Estimaciones a partir de los vecinos
 // ─────────────────────────────────────────────
 
-export type LexicalAxis = {
-  // Palabras que tiran hacia cada extremo del eje: es lo que permite
-  // leerlo ("de patria/gobierno a madre/casa"), porque el eje en sí no tiene
-  // nombre.
-  negative: string[];
-  positive: string[];
-  // Qué parte de la variación entre textos explica este eje (0-1).
-  explained: number;
-};
-
-export type LexicalMap = {
-  ids: string[];
-  coords: [number, number][];
-  axes: [LexicalAxis, LexicalAxis];
-  // Lo necesario para ubicar un texto nuevo en el mismo plano.
-  projection: {
-    eigenvectors: [number[], number[]];
-    eigenvalues: [number, number];
-    columnMeans: number[];
-    grandMean: number;
-  };
-};
-
-function dot(a: number[], b: number[]): number {
-  let sum = 0;
-  for (let i = 0; i < a.length; i++) sum += a[i] * b[i];
-  return sum;
-}
-
-function normalize(v: number[]): number[] {
-  const norm = Math.sqrt(dot(v, v));
-  return norm > 0 ? v.map((x) => x / norm) : v;
-}
-
-// Autovector dominante de una matriz simétrica por iteración de potencias,
-// ortogonal a los que ya se encontraron (deflación).
-function powerIteration(matrix: number[][], found: { vector: number[]; value: number }[]): { vector: number[]; value: number } {
-  const n = matrix.length;
-  // Arranque determinista (no aleatorio) para que el mapa sea el mismo en
-  // cada visita mientras no cambien los textos.
-  let v = normalize(Array.from({ length: n }, (_, i) => 1 + Math.sin(i + 1) / 2));
-  let value = 0;
-  for (let iter = 0; iter < 300; iter++) {
-    const next = matrix.map((row) => dot(row, v));
-    for (const f of found) {
-      const proj = f.value * dot(f.vector, v);
-      for (let i = 0; i < n; i++) next[i] -= proj * f.vector[i];
-    }
-    value = dot(v, next);
-    const normalized = normalize(next);
-    const delta = normalized.reduce((acc, x, i) => acc + Math.abs(x - v[i]), 0);
-    v = normalized;
-    if (delta < 1e-9) break;
+// Promedio ponderado por similitud al cuadrado (los muy parecidos pesan
+// mucho más que los apenas parecidos). null si ningún vecino tiene el valor.
+export function weightedEstimate(neighbors: { similarity: number; value: number | null }[]): number | null {
+  let weighted = 0;
+  let total = 0;
+  for (const n of neighbors) {
+    if (n.value == null) continue;
+    const w = n.similarity * n.similarity;
+    weighted += w * n.value;
+    total += w;
   }
-  // El signo de un autovector es arbitrario: se fija para que el elemento de
-  // mayor magnitud sea positivo y el mapa no "se dé vuelta" entre visitas.
-  let maxIndex = 0;
-  for (let i = 1; i < n; i++) if (Math.abs(v[i]) > Math.abs(v[maxIndex])) maxIndex = i;
-  if (v[maxIndex] < 0) v = v.map((x) => -x);
-  return { vector: v, value: Math.max(value, 0) };
-}
-
-export function buildLexicalMap(corpus: Corpus): LexicalMap | null {
-  const n = corpus.vectors.length;
-  if (n < 3) return null;
-
-  // Matriz de similitudes con un índice invertido (palabra → textos que la
-  // usan): solo se multiplican pares que comparten palabras. Comparar cada
-  // par de textos palabra por palabra tardaba segundos con unos cientos de
-  // textos.
-  const postings = new Map<string, { doc: number; weight: number }[]>();
-  corpus.vectors.forEach((vector, doc) => {
-    for (const [term, weight] of vector) {
-      let list = postings.get(term);
-      if (!list) postings.set(term, (list = []));
-      list.push({ doc, weight });
-    }
-  });
-  const flat = new Float64Array(n * n);
-  for (const list of postings.values()) {
-    for (let a = 0; a < list.length; a++) {
-      const rowOffset = list[a].doc * n;
-      const wa = list[a].weight;
-      for (let b = 0; b < list.length; b++) flat[rowOffset + list[b].doc] += wa * list[b].weight;
-    }
-  }
-  const kernel: number[][] = Array.from({ length: n }, (_, i) => Array.from(flat.subarray(i * n, (i + 1) * n)));
-
-  // Centrado de la matriz (equivale a centrar los vectores en el origen).
-  const columnMeans = kernel.map((row) => row.reduce((a, b) => a + b, 0) / n);
-  const grandMean = columnMeans.reduce((a, b) => a + b, 0) / n;
-  const centered = kernel.map((row, i) => row.map((value, j) => value - columnMeans[i] - columnMeans[j] + grandMean));
-  const trace = centered.reduce((acc, row, i) => acc + row[i], 0);
-
-  const first = powerIteration(centered, []);
-  const second = powerIteration(centered, [first]);
-  const components = [first, second];
-
-  const coords = corpus.ids.map(
-    (_, i) => components.map((c) => c.vector[i] * Math.sqrt(c.value)) as [number, number]
-  );
-
-  const axes = components.map((component, axis) => {
-    // Carga de cada palabra en el eje: cuánto pesa en los textos de cada
-    // extremo. Las más positivas y las más negativas nombran los polos.
-    const loading = new Map<string, number>();
-    corpus.vectors.forEach((vector, i) => {
-      const coord = coords[i][axis];
-      for (const [term, weight] of vector) loading.set(term, (loading.get(term) ?? 0) + coord * weight);
-    });
-    const sorted = [...loading.entries()].sort((a, b) => a[1] - b[1]);
-    return {
-      negative: sorted.slice(0, 5).filter(([, v]) => v < 0).map(([t]) => t),
-      positive: sorted.slice(-5).reverse().filter(([, v]) => v > 0).map(([t]) => t),
-      explained: trace > 0 ? component.value / trace : 0,
-    };
-  }) as [LexicalAxis, LexicalAxis];
-
-  return {
-    ids: corpus.ids,
-    coords,
-    axes,
-    projection: {
-      eigenvectors: [first.vector, second.vector],
-      eigenvalues: [first.value, second.value],
-      columnMeans,
-      grandMean,
-    },
-  };
-}
-
-// Ubica en el mapa un texto que no estaba en el corpus (un borrador nuevo).
-export function projectOntoMap(map: LexicalMap, corpus: Corpus, vector: SparseVector): [number, number] {
-  const sims = corpus.vectors.map((other) => cosine(vector, other));
-  const n = sims.length;
-  const meanSim = sims.reduce((a, b) => a + b, 0) / n;
-  const centered = sims.map((s, j) => s - meanSim - map.projection.columnMeans[j] + map.projection.grandMean);
-  return map.projection.eigenvectors.map((ev, m) => {
-    const value = map.projection.eigenvalues[m];
-    return value > 0 ? dot(centered, ev) / Math.sqrt(value) : 0;
-  }) as [number, number];
-}
-
-// ─────────────────────────────────────────────
-// Ejes de estilo y sentimiento
-// ─────────────────────────────────────────────
-
-export const STYLE_KEYS = ["ensayistico", "personal", "politico", "intimo"] as const;
-export type StyleKey = (typeof STYLE_KEYS)[number];
-export type ReadingKey = StyleKey | "sentimiento";
-export const READING_KEYS: readonly ReadingKey[] = [...STYLE_KEYS, "sentimiento"];
-
-export const READING_LABELS: Record<ReadingKey, string> = {
-  ensayistico: "Ensayístico",
-  personal: "Personal",
-  politico: "Político",
-  intimo: "Íntimo",
-  sentimiento: "Sentimiento",
-};
-
-export type Reading = Record<ReadingKey, number | null>;
-
-// Lectura estimada de un texto a partir de sus vecinos ya leídos: promedio
-// ponderado por similitud al cuadrado (los muy parecidos pesan mucho más que
-// los apenas parecidos). Devuelve null en un eje si ningún vecino lo tiene.
-export function predictReading(neighbors: { similarity: number; reading: Reading | null }[]): Reading {
-  const result = {} as Reading;
-  for (const key of READING_KEYS) {
-    let weighted = 0;
-    let total = 0;
-    for (const n of neighbors) {
-      const value = n.reading?.[key];
-      if (value == null) continue;
-      const w = n.similarity * n.similarity;
-      weighted += w * value;
-      total += w;
-    }
-    result[key] = total > 0 ? weighted / total : null;
-  }
-  return result;
+  return total > 0 ? weighted / total : null;
 }
 
 // Sección más probable de un texto: voto de sus vecinos ponderado por

@@ -167,17 +167,3 @@ export type PostText = {
   updated_at: string;
 };
 
-// Fila de post_text_analyses: la lectura de estilo y sentimiento de un texto.
-export type PostTextAnalysis = {
-  post_id: string;
-  sentimiento: number | null;
-  ensayistico: number | null;
-  personal: number | null;
-  politico: number | null;
-  intimo: number | null;
-  tono: string | null;
-  resumen: string | null;
-  temas: string[];
-  modelo: string | null;
-  analyzed_at: string;
-};

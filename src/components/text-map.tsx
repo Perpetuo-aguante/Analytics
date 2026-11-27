@@ -5,12 +5,12 @@ import { niceTicks } from "@/lib/chart-scale";
 import type { Category } from "@/lib/categories";
 import { MarkerShapeIcon } from "./marker-shape";
 
-// Mapa de textos: cada punto es un texto, en dos ejes que pueden ser de
-// estilo (0 a 1), sentimiento (-1 a 1) o el mapa léxico (sin escala propia:
-// solo importa qué tan cerca quedan los textos entre sí). Es el mismo
-// lenguaje visual que ScatterChart (forma y color por sección, leyenda que
-// oculta secciones, "Ver como tabla"), pero con ejes que pueden ser
-// negativos y un punto destacado para el texto nuevo que se está comparando.
+// Mapa de textos: cada punto es un texto en dos ejes (el compass editorial,
+// de 0 a 1, o cualquier par de valores). Es el mismo lenguaje visual que
+// ScatterChart (forma y color por sección, leyenda que oculta secciones,
+// "Ver como tabla"), pero con ejes que pueden ser negativos, puntos
+// atenuados (baja confianza) y un punto destacado (el post que se mira o el
+// borrador que se compara).
 
 export type TextMapDatum = {
   id: string;
@@ -19,6 +19,10 @@ export type TextMapDatum = {
   category: Category;
   x: number;
   y: number;
+  // Se dibuja atenuado (ej. baja confianza o evidencia inválida).
+  faded?: boolean;
+  // Una línea más en el tooltip.
+  note?: string;
 };
 
 // "unit" = 0 a 1, "signed" = -1 a 1, "free" = lo que digan los datos.
@@ -60,6 +64,7 @@ export function TextMap({
   x,
   y,
   highlight,
+  midlines = false,
   width = 640,
   height = 480,
 }: {
@@ -68,6 +73,8 @@ export function TextMap({
   x: AxisSpec;
   y: AxisSpec;
   highlight?: { x: number; y: number; label: string } | null;
+  // Líneas en el centro de cada eje: parten el plano en cuadrantes.
+  midlines?: boolean;
   width?: number;
   height?: number;
 }) {
@@ -85,7 +92,7 @@ export function TextMap({
     });
   }
 
-  const padding = { top: 16, right: 20, bottom: 52, left: 52 };
+  const padding = { top: 16, right: 20, bottom: 52, left: 64 };
   const innerWidth = width - padding.left - padding.right;
   const innerHeight = height - padding.top - padding.bottom;
 
@@ -132,6 +139,12 @@ export function TextMap({
           {y.domain !== "unit" && yMin < 0 && yMax > 0 && (
             <line x1={padding.left} y1={scaleY(0)} x2={width - padding.right} y2={scaleY(0)} stroke="var(--line-strong)" strokeDasharray="3 3" />
           )}
+          {midlines && (
+            <g stroke="var(--line-strong)" strokeDasharray="3 3">
+              <line x1={scaleX((xMin + xMax) / 2)} y1={padding.top} x2={scaleX((xMin + xMax) / 2)} y2={height - padding.bottom} />
+              <line x1={padding.left} y1={scaleY((yMin + yMax) / 2)} x2={width - padding.right} y2={scaleY((yMin + yMax) / 2)} />
+            </g>
+          )}
           <rect
             x={padding.left}
             y={padding.top}
@@ -157,7 +170,7 @@ export function TextMap({
           )}
           <text
             x={-(padding.top + innerHeight / 2)}
-            y={14}
+            y={16}
             fontSize={11}
             fill="var(--axis-ink)"
             textAnchor="middle"
@@ -167,12 +180,12 @@ export function TextMap({
             {y.label}
           </text>
           {y.lowHint && (
-            <text x={-(padding.top + innerHeight)} y={30} fontSize={10} fill="var(--axis-ink)" textAnchor="start" transform="rotate(-90)">
+            <text x={-(padding.top + innerHeight)} y={16} fontSize={10} fill="var(--axis-ink)" textAnchor="start" transform="rotate(-90)">
               ← {y.lowHint}
             </text>
           )}
           {y.highHint && (
-            <text x={-padding.top} y={30} fontSize={10} fill="var(--axis-ink)" textAnchor="end" transform="rotate(-90)">
+            <text x={-padding.top} y={16} fontSize={10} fill="var(--axis-ink)" textAnchor="end" transform="rotate(-90)">
               {y.highHint} →
             </text>
           )}
@@ -190,6 +203,7 @@ export function TextMap({
                 onFocus={() => setActive(d)}
                 onBlur={() => setActive((cur) => (cur?.id === d.id ? null : cur))}
                 className="cursor-pointer outline-none focus-visible:opacity-80"
+                style={{ opacity: d.faded ? 0.35 : 1 }}
               >
                 <circle cx={cx} cy={cy} r={14} fill="transparent" />
                 <circle cx={cx} cy={cy} r={6} fill="var(--surface)" opacity={0.95} />
@@ -236,6 +250,7 @@ export function TextMap({
               <span className="inline-block h-2 w-2 rounded-full" style={{ background: tooltip.category.color }} aria-hidden />
               {tooltip.category.name}
             </p>
+            {tooltip.note && <p className="mt-1 max-w-[220px] text-ink-muted">{tooltip.note}</p>}
             {x.domain !== "free" && (
               <p className="tnum mt-1.5 text-ink-muted">
                 {x.label} <span className="font-semibold text-ink">{formatValue(x, tooltip.x)}</span>
