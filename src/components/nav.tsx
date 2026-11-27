@@ -5,6 +5,7 @@
 // mismo recorte en vez de volver a empezar. Por eso es client component —
 // necesita leer los searchParams actuales, que un layout server no recibe.
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
@@ -38,7 +39,7 @@ function NavLinks() {
   return (
     // En pantalla chica los siete destinos no caben en una línea: la nav se
     // vuelve una tira deslizable en vez de desbordar la página entera.
-    <nav className="-mx-1 flex max-w-full items-center gap-1 overflow-x-auto px-1 text-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <nav className="-mx-1 flex max-w-full items-center gap-5 overflow-x-auto px-1 pb-1.5 pt-1 text-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {SECTIONS.map((section) => {
         const isActive =
           section.href === "/" ? pathname === "/" : pathname.startsWith(section.href);
@@ -47,17 +48,13 @@ function NavLinks() {
             key={section.href}
             href={`${section.href}${suffix}`}
             aria-current={isActive ? "page" : undefined}
-            className={`shrink-0 rounded-full px-3 py-1.5 transition-all duration-200 ${
-              isActive
-                ? "bg-blue font-semibold text-on-brand shadow-[0_6px_14px_-6px_rgb(15_82_160/0.7)]"
-                : "text-ink-secondary hover:bg-blue/10 hover:text-ink"
-            }`}
+            className="nav-link shrink-0 py-1"
           >
             {section.label}
           </Link>
         );
       })}
-      <Link href="/subir" className="btn-primary ml-1 shrink-0 px-4 py-1.5 text-xs">
+      <Link href="/subir" className="btn-primary shrink-0 px-4 py-1.5 text-xs">
         Cargar
       </Link>
     </nav>
@@ -66,18 +63,20 @@ function NavLinks() {
 
 export function Nav() {
   return (
-    // La nav flota: una cápsula de vidrio despegada del borde superior, con
-    // sombra propia, en vez de una franja pegada al techo de la ventana.
-    <header className="sticky top-0 z-20 px-3 pt-3 sm:px-4">
-      <div className="nav-float mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-2.5 sm:px-5">
-        <Link href="/" className="group flex shrink-0 items-center gap-2.5">
-          <span
-            className="inline-block h-5 w-5 rounded-full bg-[radial-gradient(circle_at_30%_30%,#3d7fd0,var(--blue)_55%,var(--blue-deep))] shadow-[0_3px_8px_-2px_rgb(15_82_160/0.6)] transition-transform duration-300 group-hover:scale-110"
-            aria-hidden
+    // Como en el brandbook: logotipo a la izquierda, secciones a la derecha
+    // y un filete azul de 2px a todo el ancho debajo (.site-header).
+    <header className="site-header sticky top-0 z-20">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-6 py-3">
+        <Link href="/" className="flex shrink-0 items-baseline gap-2.5" aria-label="Perpetuo Analítica, inicio">
+          <Image
+            src="/marca/perpetuo-logotipo.png"
+            alt="Perpetuo"
+            width={640}
+            height={109}
+            priority
+            className="h-[18px] w-auto self-center"
           />
-          <span className="font-display text-base font-semibold tracking-tight">
-            Perpetuo <span className="text-ink-muted">Analítica</span>
-          </span>
+          <span className="text-sm text-ink-secondary">Analítica</span>
         </Link>
         {/* useSearchParams necesita un límite de Suspense; el fallback es la
             propia nav sin los filtros arrastrados, no un hueco vacío. */}

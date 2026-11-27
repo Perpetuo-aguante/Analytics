@@ -63,6 +63,7 @@ export default async function RetencionPage() {
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">
       <PageHeader
+        personaje="punto-estrella"
         title="Retención"
         description="Cuántos de los que se suscriben siguen al mes y a los 3 meses, y cómo se comportan en ese tiempo."
         scope="Totales: altas de los últimos 12 meses"

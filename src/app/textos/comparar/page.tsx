@@ -23,6 +23,7 @@ export default async function CompararPage() {
       </Link>
       <div className="mt-4">
         <PageHeader
+        personaje="interrogacion-libreta"
           title="Comparar un texto nuevo"
           description="Pega un borrador (o sube su .txt) y mira a qué textos de Perpetuo se parece por vocabulario y dónde caería en el compass, estimado a partir de esos vecinos. Es instantáneo, no usa LLM y no se guarda nada."
           scope={`${rows.length.toLocaleString("es")} posts con lectura para comparar`}

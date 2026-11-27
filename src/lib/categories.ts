@@ -10,7 +10,8 @@ export type MarkerShape = "circle" | "square" | "triangle" | "diamond" | "cross"
 export type Category = Omit<PostCategory, "shape"> & { shape: MarkerShape };
 
 // Paleta categórica validada (scripts/validate_palette.js de la skill
-// dataviz) contra la superficie de la app en la lista de pares *adyacentes*:
+// dataviz) contra el crema de Perpetuo. Los dos primeros lugares son el
+// azul (paso de datos) y el rojo del sistema de diseño de Perpetuo en la lista de pares *adyacentes*:
 // separación CVD y contraste normal pasan para los 7; el contraste vs. fondo
 // de aqua/amarillo/rosa queda bajo 3:1 (por eso esos charts llevan etiqueta
 // directa y "Ver como tabla" — nunca dependen solo del color). Una categoría
@@ -18,8 +19,8 @@ export type Category = Omit<PostCategory, "shape"> & { shape: MarkerShape };
 // paleta (ver autoStyleForIndex) para no romper esa validación con un hex
 // cualquiera. Pasado el séptimo lugar, la paleta se recicla.
 const AUTO_PALETTE: { color: string; shape: MarkerShape }[] = [
-  { color: "#0f52a0", shape: "circle" },
-  { color: "#d0301f", shape: "star" },
+  { color: "#0a4f9c", shape: "circle" },
+  { color: "#e2543b", shape: "star" },
   { color: "#1baf7a", shape: "cross" },
   { color: "#eda100", shape: "square" },
   { color: "#8a4fd0", shape: "triangle" },
@@ -31,6 +32,16 @@ export function autoStyleForIndex(index: number): { color: string; shape: Marker
   return AUTO_PALETTE[index % AUTO_PALETTE.length];
 }
 
+// Las categorías creadas antes de adoptar la paleta del sistema de Perpetuo
+// guardaron el azul y el rojo viejos. Se traducen al leer para que todos los
+// charts hablen con la paleta nueva sin migrar la base; si alguien edita la
+// categoría desde /subir, se guarda ya con el color nuevo.
+const LEGACY_COLORS: Record<string, string> = {
+  "#0f52a0": "#0a4f9c",
+  "#d0301f": "#e2543b",
+};
+
 export async function getCategories(): Promise<Category[]> {
-  return query<Category>("select * from post_categories order by sort_order asc");
+  const rows = await query<Category>("select * from post_categories order by sort_order asc");
+  return rows.map((c) => ({ ...c, color: LEGACY_COLORS[c.color?.toLowerCase()] ?? c.color }));
 }

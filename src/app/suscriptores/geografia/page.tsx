@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/personaje";
 import Link from "next/link";
 import { Suspense } from "react";
 import { BarChart } from "@/components/bar-chart";
@@ -86,6 +87,7 @@ export default async function SuscriptoresGeografiaPage({
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">
       <PageHeader
+        personaje="punto-corriendo"
         title="Geografía"
         description="De dónde vienen los suscriptores y cómo cambia con el tiempo: el ranking de países y regiones de hoy, y la historia mes a mes reconstruida desde las fechas de alta y de baja."
         scope={`Ventana de comparación: últimos ${d.window.label}${d.snapshotDate ? ` · carga del ${d.snapshotDate}` : ""}`}
@@ -134,13 +136,15 @@ export default async function SuscriptoresGeografiaPage({
       </div>
 
       {d.totalActive === 0 ? (
-        <p className="panel p-8 text-sm text-ink-muted">
+        <div className="panel px-6">
+          <EmptyState>
           Todavía no hay suscriptores cargados. Sube el export de Substack desde{" "}
           <Link href="/subir" className="underline">
             /subir
           </Link>
           .
-        </p>
+          </EmptyState>
+        </div>
       ) : (
         <div className="space-y-6">
           <section className="panel rise rise-2 p-5 sm:p-6">

@@ -7,6 +7,7 @@
 // primero en el tooltip, leyenda siempre presente con 2+ series).
 
 import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import { EmptyState } from "../personaje";
 import { usePlotArea, useYAxisScale, type TooltipContentProps } from "recharts";
 import type { NameType, ValueType } from "recharts/types/component/DefaultTooltipContent";
 
@@ -207,11 +208,7 @@ export function TableToggle({ children, label = "Ver como tabla" }: { children: 
 }
 
 export function EmptyChart({ children = "Sin datos todavía." }: { children?: ReactNode }) {
-  return (
-    <div className="flex h-40 items-center justify-center rounded-2xl border border-dashed border-line-strong text-sm text-ink-muted">
-      {children}
-    </div>
-  );
+  return <EmptyState compact>{children}</EmptyState>;
 }
 
 // ── Movimiento reducido ─────────────────────────────────────────────────

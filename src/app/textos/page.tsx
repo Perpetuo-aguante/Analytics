@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/personaje";
 import Link from "next/link";
 import { Suspense } from "react";
 import { FilterBar } from "@/components/filter-bar";
@@ -110,6 +111,7 @@ export default async function TextosPage({ searchParams }: { searchParams: Promi
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">
       <PageHeader
+        personaje="interrogacion-libreta"
         title="Compass editorial"
         description="Cada post en dos ejes: referencial ↔ poético (¿apunta al mundo o a su propio lenguaje?) e impersonal ↔ subjetivo (¿cuánto está construido desde el yo que enuncia?). Debajo, cómo rinde cada zona del plano y el perfil literario del recorte."
         scope={describeFilters(filters)}
@@ -135,10 +137,12 @@ export default async function TextosPage({ searchParams }: { searchParams: Promi
       </div>
 
       {corpus.length === 0 ? (
-        <p className="panel p-8 text-sm text-ink-muted">
+        <div className="panel px-6">
+          <EmptyState>
           Todavía no hay posts con lectura. El agente sube cada texto con su lectura a{" "}
           <code>POST /api/ingest/texts</code>, siguiendo la guía de <code>GET /api/ingest/texts/guia</code>.
-        </p>
+          </EmptyState>
+        </div>
       ) : (
         <div className="space-y-6">
           <section className="panel rise rise-2 p-5 sm:p-6">

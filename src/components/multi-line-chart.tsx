@@ -186,7 +186,7 @@ export function MultiLineChart({
               dataKey="date"
               height={24}
               travellerWidth={8}
-              stroke="var(--blue)"
+              stroke="var(--axis-ink)"
               fill="var(--surface)"
               tickFormatter={() => ""}
               onChange={(r) => {

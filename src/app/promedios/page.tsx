@@ -31,6 +31,7 @@ export default async function PromediosPage({ searchParams }: { searchParams: Pr
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">
       <PageHeader
+        personaje="interrogacion-libreta"
         title="Promedios"
         description="El promedio del recorte y su evolución histórica, suavizada con una media móvil de 3 cargas semanales para que el ruido de una semana suelta no se lea como una tendencia."
         scope={describeFilters(filters)}

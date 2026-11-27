@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/page-header";
 import Link from "next/link";
 import {
   getSubscriberFilterOptions,
@@ -79,11 +80,11 @@ export default async function SuscriptoresListaPage({ searchParams }: { searchPa
 
   return (
     <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-12">
-      <header className="mb-8">
-        <p className="text-sm uppercase tracking-wide text-ink-muted">Perpetuo</p>
-        <h1 className="mt-1 font-display text-3xl font-semibold">Suscriptores</h1>
-        <p className="mt-2 text-sm text-ink-muted">Buscá, filtrá y ordená la base completa de suscriptores.</p>
-      </header>
+      <PageHeader
+        personaje="punto-estrella"
+        title="Suscriptores"
+        description="Buscá, filtrá y ordená la base completa de suscriptores."
+      />
 
       <SubscriberTabs active="lista" />
 

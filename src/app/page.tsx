@@ -36,6 +36,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">
       <PageHeader
+        personaje="punto-corriendo"
         title="Publicaciones"
         description="Todo lo publicado, con sus métricas más recientes. Filtra por fecha y sección arriba, ordena por cualquier columna de la tabla."
         scope={describeFilters(filters)}

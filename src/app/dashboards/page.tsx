@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/personaje";
 import { Suspense } from "react";
 import { FilterBar } from "@/components/filter-bar";
 import { PageHeader } from "@/components/page-header";
@@ -59,6 +60,7 @@ export default async function DashboardsPage({ searchParams }: { searchParams: P
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">
       <PageHeader
+        personaje="punto-estrella"
         title="Dashboards"
         description="El plano completo: cada punto es un post, cada línea una sección. El recorte de arriba manda sobre todos los charts a la vez, así que lo que ves en uno siempre cuadra con lo que ves en el otro."
         scope={describeFilters(filters)}
@@ -80,9 +82,11 @@ export default async function DashboardsPage({ searchParams }: { searchParams: P
       </div>
 
       {rows.length === 0 ? (
-        <p className="panel p-8 text-sm text-ink-muted">
+        <div className="panel px-6">
+          <EmptyState>
           Ningún post cae dentro de este recorte. Prueba a ampliar el rango de fechas o a quitar secciones.
-        </p>
+          </EmptyState>
+        </div>
       ) : (
         <div className="space-y-6">
           <section className="panel rise rise-2 p-5 sm:p-6">

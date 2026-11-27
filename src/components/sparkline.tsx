@@ -33,8 +33,8 @@ export function Sparkline({
     <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} aria-hidden className="overflow-visible">
       <defs>
         <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity={0.22} />
-          <stop offset="100%" stopColor={color} stopOpacity={0} />
+          <stop offset="0%" stopColor={color} stopOpacity={0.1} />
+          <stop offset="100%" stopColor={color} stopOpacity={0.1} />
         </linearGradient>
       </defs>
       <path d={`${path} L ${width} ${height} L 0 ${height} Z`} fill={`url(#${gradientId})`} stroke="none" />

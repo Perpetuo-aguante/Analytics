@@ -35,6 +35,7 @@ export default async function TendenciasPage({ searchParams }: { searchParams: P
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">
       <PageHeader
+        personaje="punto-corriendo"
         title="Tendencias"
         description="Qué está ganando lectores ahora y qué temas vuelven a circular. Se calcula con las vistas nuevas entre una carga y la siguiente."
         scope={describeFilters(filters)}

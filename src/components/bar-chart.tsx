@@ -29,7 +29,7 @@ export function BarChart({
           </span>
           <div className="h-3 flex-1 overflow-hidden rounded-full bg-surface-sunk">
             <div
-              className="bar-fill h-3 rounded-r-[5px] bg-[linear-gradient(90deg,var(--blue-deep),var(--blue))]"
+              className="bar-fill h-3 rounded-r-[5px] bg-blue"
               style={{
                 width: `${Math.max((d.value / max) * 100, d.value > 0 ? 2 : 0)}%`,
                 animationDelay: `${Math.min(index, 12) * 40}ms`,

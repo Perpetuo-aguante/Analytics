@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/page-header";
 import Link from "next/link";
 import { getSubscriberDashboard } from "@/lib/subscriber-queries";
 import { formatMoney, formatNumber, formatPercent, formatTenure } from "@/lib/display";
@@ -23,14 +24,11 @@ export default async function SuscriptoresPage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">
-      <header className="mb-8">
-        <p className="text-sm uppercase tracking-wide text-ink-muted">Perpetuo</p>
-        <h1 className="mt-1 font-display text-3xl font-semibold">Suscriptores</h1>
-        <p className="mt-2 text-sm text-ink-muted">
-          Basado en la carga más reciente de suscriptores. Sube el export de Substack desde{" "}
-          <span className="font-medium">/subir</span> para mantenerlo al día.
-        </p>
-      </header>
+      <PageHeader
+        personaje="punto-estrella"
+        title="Suscriptores"
+        description="Basado en la carga más reciente de suscriptores. Sube el export de Substack desde /subir para mantenerlo al día."
+      />
 
       <SubscriberTabs active="panel" />
 
