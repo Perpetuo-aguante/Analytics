@@ -34,6 +34,7 @@ rankings, los stat tiles y la ficha de cada post.
 ## Funcionalidad
 
 - **Cargas automáticas** (martes, jueves y sábado): un agente descarga los exports de Substack y los sube a `POST /api/ingest/posts` y `POST /api/ingest/subscribers` con `INGEST_API_KEY`. Ver [`docs/ingest-api.md`](./docs/ingest-api.md).
+- **Textos** (`/textos`): el texto completo de cada post lo sube el mismo agente a `POST /api/ingest/texts`, junto con su lectura de estilo (ensayístico, personal, político, íntimo, de 0 a 1) y sentimiento (-1 a 1). `/textos` muestra el mapa de textos — el mapa léxico (textos cerca = mismas palabras poco comunes) o cualquier par de ejes de estilo — y el perfil promedio de cada sección. La ficha de cada post muestra su lectura, sus textos más parecidos y, para admins, el texto entero y su .txt. `/textos/comparar` (y `POST /api/textos/comparar`) recibe un borrador y dice a qué se parece, dónde cae en el mapa y qué lectura tendría, estimada a partir de sus vecinos. Ver `lib/text-analysis.ts`.
 - **`/subir`** (requiere cuenta de admin, ver "Acceso"): registro de las cargas automáticas (y sus errores), carga manual de un Excel/CSV con métricas por post (mapea columnas en español/inglés automáticamente) y del export de suscriptores de Substack (columnas fijas). La carga manual y la automática usan el mismo código (`lib/imports/`).
 - **`/`**: tabla ordenable por cualquier métrica (views, open rate, nuevos suscriptores, engagement, ingresos estimados) más búsqueda por título, sobre el snapshot más reciente de cada post.
 - **`/rankings`**: rankings en barras, globales y partidos por sección, por la métrica que elijas (views, open rate, nuevos suscriptores, engagement o ingresos estimados).
@@ -102,6 +103,8 @@ Corre contra `DATABASE_URL_UNPOOLED` (la conexión directa, la recomendada por N
 - `post_categories`: las secciones, editables desde `/subir`.
 - `subscribers`: identidad de cada suscriptor (email) + atributos descriptivos (tipo, plan, fechas de alta/baja, país, estado/provincia, preferencias de sección) que se actualizan en cada carga. `start_date` y `cancel_date` son las que sostienen todo el histórico de `/suscriptores/geografia`.
 - `subscriber_snapshots`: las métricas cuantitativas de actividad (aperturas, clics, views, comentarios, shares, revenue) por carga. Para no llenar la base con tres cargas por semana, después de cada carga se conservan solo las fotos de los primeros 100 días de cada suscriptor, su foto más reciente y la primera de cada mes (`lib/imports/retention-policy.ts`).
+- `post_texts`: el texto completo de cada post (uno por post; una carga nueva lo reemplaza), con su conteo de palabras, hash y su "huella léxica" (`term_counts`, las palabras con contenido y cuántas veces aparecen) calculada al guardar.
+- `post_text_analyses`: la lectura de cada texto (sentimiento y los cuatro ejes de estilo, tono, resumen, temas y qué modelo la hizo).
 - `ingest_runs`: registro de cada carga que llegó por la API de ingesta (exitosa o no).
 - `current_subscriber_metrics` (vista): el snapshot más reciente de cada suscriptor, con open rate (sobre correos únicos vistos, con tope de 100%) y click rate ya calculados.
 
@@ -113,7 +116,7 @@ La app habla con Postgres solo desde el servidor (`lib/db.ts`, driver `@neondata
 
 `/subir` y la corrección manual de posts piden una cuenta de **Neon Auth** (correo y contraseña). Cualquiera puede crearse una cuenta desde `/subir`, pero solo los correos listados en `ADMIN_EMAILS` pueden cargar o modificar datos; el resto ve un aviso de "sin permiso". Si `ADMIN_EMAILS` no está configurada, nadie es admin. Las cuentas viven en el esquema `neon_auth` de la misma base.
 
-Las páginas de lectura (`/`, `/rankings`, `/suscriptores`, etc.) siguen siendo públicas.
+Las páginas de lectura (`/`, `/rankings`, `/suscriptores`, etc.) siguen siendo públicas. La excepción es el texto completo de cada post (y su descarga en .txt): solo lo ven los admins, porque puede ser contenido de pago en Substack. La lectura de estilo, los parecidos y el mapa sí son públicos.
 
 ## Desarrollo local
 

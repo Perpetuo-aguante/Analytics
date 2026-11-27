@@ -15,6 +15,7 @@ const SECTIONS = [
   { href: "/dashboards", label: "Dashboards" },
   { href: "/promedios", label: "Promedios" },
   { href: "/tendencias", label: "Tendencias" },
+  { href: "/textos", label: "Textos" },
   { href: "/suscriptores", label: "Suscriptores" },
 ] as const;
 
@@ -35,7 +36,7 @@ function NavLinks() {
   const suffix = carried.toString() ? `?${carried.toString()}` : "";
 
   return (
-    // En pantalla chica los seis destinos no caben en una línea: la nav se
+    // En pantalla chica los siete destinos no caben en una línea: la nav se
     // vuelve una tira deslizable en vez de desbordar la página entera.
     <nav className="-mx-1 flex max-w-full items-center gap-1 overflow-x-auto px-1 text-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {SECTIONS.map((section) => {

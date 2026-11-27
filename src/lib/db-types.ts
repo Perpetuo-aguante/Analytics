@@ -152,3 +152,32 @@ export type CurrentSubscriberMetric = Subscriber & {
   open_rate_6mo: number | null;
   click_rate: number | null;
 };
+
+// Fila de post_texts: el texto completo de un post (ver lib/texts.ts).
+export type PostText = {
+  post_id: string;
+  body: string;
+  word_count: number;
+  char_count: number;
+  content_hash: string;
+  term_counts: Record<string, number>;
+  file_name: string | null;
+  source: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+// Fila de post_text_analyses: la lectura de estilo y sentimiento de un texto.
+export type PostTextAnalysis = {
+  post_id: string;
+  sentimiento: number | null;
+  ensayistico: number | null;
+  personal: number | null;
+  politico: number | null;
+  intimo: number | null;
+  tono: string | null;
+  resumen: string | null;
+  temas: string[];
+  modelo: string | null;
+  analyzed_at: string;
+};

@@ -250,7 +250,7 @@ order by ss.subscriber_id, ss.snapshot_date desc;
 -- ─────────────────────────────────────────────
 create table if not exists ingest_runs (
   id uuid primary key default gen_random_uuid(),
-  kind text not null,                      -- 'posts' | 'subscribers'
+  kind text not null,                      -- 'posts' | 'subscribers' | 'texts'
   snapshot_date date,
   ok boolean not null,
   dry_run boolean not null default false,
@@ -262,3 +262,46 @@ create table if not exists ingest_runs (
 );
 
 create index if not exists idx_ingest_runs_created on ingest_runs (created_at desc);
+
+-- ─────────────────────────────────────────────
+-- post_texts: el texto completo de cada post (el .txt que sube el agente por
+-- POST /api/ingest/texts). Uno por post: una carga nueva lo reemplaza.
+-- term_counts es la "huella léxica" del texto (las palabras con contenido y
+-- cuántas veces aparecen, ver lib/text-analysis.ts): se calcula al guardar
+-- para que el mapa de textos y la búsqueda de parecidos no tengan que leer
+-- los textos enteros en cada página.
+-- ─────────────────────────────────────────────
+create table if not exists post_texts (
+  post_id uuid primary key references posts(id) on delete cascade,
+  body text not null,
+  word_count integer not null,
+  char_count integer not null,
+  content_hash text not null,              -- sha256 del texto normalizado
+  term_counts jsonb not null default '{}', -- {"palabra": veces}, solo palabras con contenido
+  file_name text,                          -- nombre del .txt original, si vino como archivo
+  source text,                             -- User-Agent de quien subió
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- ─────────────────────────────────────────────
+-- post_text_analyses: la lectura de cada texto en ejes de estilo y
+-- sentimiento. La hace el agente (un LLM) y la sube junto con el texto o
+-- después. Escalas:
+--   sentimiento: -1 (muy negativo) a 1 (muy positivo), 0 = neutro;
+--   ensayistico, personal, politico, intimo: 0 a 1, independientes entre sí
+--   (un texto puede ser muy personal y muy político a la vez).
+-- ─────────────────────────────────────────────
+create table if not exists post_text_analyses (
+  post_id uuid primary key references posts(id) on delete cascade,
+  sentimiento numeric(4,3) check (sentimiento between -1 and 1),
+  ensayistico numeric(4,3) check (ensayistico between 0 and 1),
+  personal numeric(4,3) check (personal between 0 and 1),
+  politico numeric(4,3) check (politico between 0 and 1),
+  intimo numeric(4,3) check (intimo between 0 and 1),
+  tono text,                               -- una o dos palabras: "melancólico", "irónico"...
+  resumen text,                            -- una o dos frases
+  temas text[] not null default '{}',
+  modelo text,                             -- qué modelo hizo la lectura, ej. "grok-4"
+  analyzed_at timestamptz not null default now()
+);
