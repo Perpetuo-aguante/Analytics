@@ -7,6 +7,7 @@ import { LineChart, type ChartPoint } from "@/components/line-chart";
 import { InterestChart } from "@/components/interest-chart";
 import { interestIntervals, summarizePeaks } from "@/lib/interest";
 import { EditPostForm } from "./edit-form";
+import { TextSection } from "./text-section";
 import { isAdmin as getIsAdmin } from "@/lib/session";
 import type { MetricSnapshot } from "@/lib/db-types";
 
@@ -47,6 +48,8 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
       </p>
 
       {isAdmin && <EditPostForm post={post} snapshot={latestSnapshot} categories={categories} />}
+
+      <TextSection postId={post.id} slug={post.slug} isAdmin={isAdmin} />
 
       {snapshots.length === 0 ? (
         <p className="mt-12 text-sm text-ink-muted">Todavía no hay snapshots de métricas para este post.</p>

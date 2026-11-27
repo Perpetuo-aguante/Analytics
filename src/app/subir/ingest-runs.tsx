@@ -18,7 +18,7 @@ export async function IngestRuns() {
     <div>
       <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-ink-muted">Cargas automáticas</h2>
       <p className="mb-4 text-sm text-ink-muted">
-        Lo que subió el agente por la API de ingesta (martes, jueves y sábado). Las cargas manuales de esta página no
+        Lo que subió el agente por la API de ingesta (métricas martes, jueves y sábado; textos cuando se publican). Las cargas manuales de esta página no
         aparecen acá.
       </p>
       {runs.length === 0 ? (
@@ -29,7 +29,7 @@ export async function IngestRuns() {
             <li key={run.id} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-3">
               <span>
                 <span aria-hidden>{run.ok ? "✓" : "✗"}</span>{" "}
-                <span className="font-medium">{run.kind === "posts" ? "Posts" : "Suscriptores"}</span>
+                <span className="font-medium">{KIND_LABELS[run.kind] ?? run.kind}</span>
                 {run.snapshot_date && <span className="text-ink-muted"> · snapshot {run.snapshot_date}</span>}
                 {run.row_count != null && <span className="text-ink-muted"> · {run.row_count.toLocaleString("es")} filas</span>}
                 {run.dry_run && <span className="text-ink-muted"> · prueba (sin guardar)</span>}
@@ -45,6 +45,12 @@ export async function IngestRuns() {
     </div>
   );
 }
+
+const KIND_LABELS: Record<IngestRun["kind"], string> = {
+  posts: "Posts",
+  subscribers: "Suscriptores",
+  texts: "Textos",
+};
 
 function formatTimestamp(iso: string): string {
   return new Intl.DateTimeFormat("es-MX", {

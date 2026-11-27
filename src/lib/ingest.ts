@@ -111,7 +111,7 @@ export class IngestError extends Error {
 // Deja constancia de cada carga (exitosa o no) en ingest_runs. Si el propio
 // registro falla, no se tumba la respuesta: lo importante es la carga.
 export async function logIngestRun(run: {
-  kind: "posts" | "subscribers";
+  kind: "posts" | "subscribers" | "texts";
   snapshotDate: string | null;
   ok: boolean;
   dryRun: boolean;
@@ -142,7 +142,7 @@ export async function logIngestRun(run: {
 
 export type IngestRun = {
   id: string;
-  kind: "posts" | "subscribers";
+  kind: "posts" | "subscribers" | "texts";
   snapshot_date: string | null;
   ok: boolean;
   dry_run: boolean;

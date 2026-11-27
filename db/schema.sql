@@ -250,7 +250,7 @@ order by ss.subscriber_id, ss.snapshot_date desc;
 -- ─────────────────────────────────────────────
 create table if not exists ingest_runs (
   id uuid primary key default gen_random_uuid(),
-  kind text not null,                      -- 'posts' | 'subscribers'
+  kind text not null,                      -- 'posts' | 'subscribers' | 'texts'
   snapshot_date date,
   ok boolean not null,
   dry_run boolean not null default false,
@@ -262,3 +262,119 @@ create table if not exists ingest_runs (
 );
 
 create index if not exists idx_ingest_runs_created on ingest_runs (created_at desc);
+
+-- ─────────────────────────────────────────────
+-- post_texts: el texto completo de cada post (el .txt que sube el agente por
+-- POST /api/ingest/texts). Uno por post: una carga nueva lo reemplaza.
+-- term_counts es la "huella léxica" del texto (las palabras con contenido y
+-- cuántas veces aparecen, ver lib/text-analysis.ts): se calcula al guardar
+-- para que el mapa de textos y la búsqueda de parecidos no tengan que leer
+-- los textos enteros en cada página.
+-- ─────────────────────────────────────────────
+create table if not exists post_texts (
+  post_id uuid primary key references posts(id) on delete cascade,
+  body text not null,
+  word_count integer not null,
+  char_count integer not null,
+  content_hash text not null,              -- sha256 del texto normalizado
+  term_counts jsonb not null default '{}', -- {"palabra": veces}, solo palabras con contenido
+  file_name text,                          -- nombre del .txt original, si vino como archivo
+  source text,                             -- User-Agent de quien subió
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- ─────────────────────────────────────────────
+-- Estilometría mínima de cada texto (rasgos baratos, sin modelos), en
+-- post_texts.features. La calcula la app al guardar el texto
+-- (lib/text-features.ts) y sirve para anclar el compass: avisa cuando el
+-- score del LLM contradice los números.
+-- ─────────────────────────────────────────────
+alter table post_texts add column if not exists features jsonb not null default '{}';
+
+-- ═════════════════════════════════════════════
+-- Compass editorial (spec «Compass editorial y análisis literario de posts»,
+-- versión lean). La lectura la hace el agente al subir cada texto
+-- (POST /api/ingest/texts, campo `analisis`) siguiendo la guía de
+-- GET /api/ingest/texts/guia; la app valida vocabularios y que cada cita
+-- exista literalmente en el texto. Los vocabularios de los `check` salen
+-- de src/lib/compass-vocab.ts.
+-- ═════════════════════════════════════════════
+
+-- Taxonomía fija de temas (PROVISIONAL). Lo político vive aquí, no en los ejes.
+create table if not exists theme_taxonomy (
+  slug text primary key,
+  nombre text not null unique,
+  descripcion text,
+  sort_order integer not null default 0
+);
+
+insert into theme_taxonomy (slug, nombre, descripcion, sort_order) values
+  ('politica-poder', 'Política y poder', 'gobierno, Estado, elecciones, partidos, poder público', 0),
+  ('violencia', 'Violencia', 'crimen, narco, guerra, desaparición, violencia de Estado o doméstica', 1),
+  ('justicia-derechos', 'Justicia y derechos', 'derechos humanos, leyes, impunidad, activismo', 2),
+  ('migracion-frontera', 'Migración y frontera', 'migrar, exilio, frontera, diáspora', 3),
+  ('ciudad-territorio', 'Ciudad y territorio', 'la ciudad, el barrio, el paisaje, el lugar', 4),
+  ('memoria-historia', 'Memoria e historia', 'pasado colectivo, archivo, historia nacional', 5),
+  ('familia', 'Familia', 'padres, hijos, herencia, crianza, linaje', 6),
+  ('amor-deseo', 'Amor y deseo', 'pareja, erotismo, enamoramiento, ruptura', 7),
+  ('duelo-muerte', 'Duelo y muerte', 'pérdida, muerte, luto', 8),
+  ('cuerpo-salud', 'Cuerpo y salud', 'cuerpo, enfermedad, salud mental, envejecimiento', 9),
+  ('identidad-genero', 'Identidad y género', 'género, sexualidad, raza, clase como identidad', 10),
+  ('infancia', 'Infancia', 'niñez, adolescencia, formación', 11),
+  ('trabajo-economia', 'Trabajo y economía', 'dinero, empleo, precariedad, consumo', 12),
+  ('tecnologia', 'Tecnología', 'internet, redes, inteligencia artificial, ciencia aplicada', 13),
+  ('naturaleza-ambiente', 'Naturaleza y ambiente', 'animales, ecología, crisis climática', 14),
+  ('fe-espiritualidad', 'Fe y espiritualidad', 'religión, lo sagrado, ritual, mística', 15),
+  ('literatura-escritura', 'Literatura y escritura', 'leer, escribir, libros, el oficio, la lengua', 16),
+  ('arte-cultura', 'Arte y cultura', 'artes visuales, cine, música, teatro, cultura popular', 17),
+  ('filosofia-ideas', 'Filosofía e ideas', 'pensamiento, ética, conceptos, teoría', 18),
+  ('viaje', 'Viaje', 'viajar, desplazamiento, extranjería', 19),
+  ('comida', 'Comida', 'cocina, alimentación, sobremesa', 20),
+  ('deporte-juego', 'Deporte y juego', 'deporte, futbol, juego, competencia', 21)
+on conflict (slug) do update set nombre = excluded.nombre, descripcion = excluded.descripcion, sort_order = excluded.sort_order;
+
+create table if not exists post_compass (
+  post_id uuid primary key references posts(id) on delete cascade,
+  content_hash text not null,              -- de qué versión del texto es la lectura
+  prompt_version text not null,
+  modelo text,
+  -- X: referencial (0) ↔ poético (100). Y: impersonal (0) ↔ subjetivo (100).
+  compass_x integer not null check (compass_x between 0 and 100),
+  compass_x_confianza numeric(4,3) not null,
+  compass_y integer not null check (compass_y between 0 and 100),
+  compass_y_confianza numeric(4,3) not null,
+  tesis text check (tesis in ('explícita al inicio', 'explícita al final', 'implícita', 'ausente')),
+  polo_dominante text check (polo_dominante in ('metafórico', 'metonímico', 'equilibrado')),
+  dificultad integer check (dificultad between 1 and 5),
+  tipo_gancho text check (tipo_gancho in ('escena in medias res', 'pregunta', 'tesis provocadora', 'anécdota', 'dato', 'cita', 'imagen', 'contexto expositivo')),
+  fuerza_gancho integer check (fuerza_gancho between 1 and 5),
+  cierre text check (cierre in ('abierto', 'cerrado', 'epifánico', 'remate irónico', 'circular', 'llamado a la acción')),
+  -- La lectura completa: por dimensión, sus valores, evidencia, confianza,
+  -- evidencia_invalida y cuántas veces se reintentó.
+  dimensiones jsonb not null,
+  campos_evidencia_invalida text[] not null default '{}',
+  analyzed_at timestamptz not null default now()
+);
+
+create table if not exists post_themes (
+  post_id uuid not null references posts(id) on delete cascade,
+  tema text not null references theme_taxonomy(slug) on update cascade,
+  peso numeric(4,3) not null check (peso between 0 and 1),
+  primary key (post_id, tema)
+);
+
+create index if not exists idx_post_themes_tema on post_themes (tema);
+
+create table if not exists post_references (
+  id uuid primary key default gen_random_uuid(),
+  post_id uuid not null references posts(id) on delete cascade,
+  autor text not null,
+  obra text,
+  tipo text not null check (tipo in ('cita', 'alusión', 'parodia', 'epígrafe')),
+  tradicion text not null check (tradicion in ('latinoamericana', 'española', 'europea', 'anglo', 'clásica', 'otra')),
+  evidencia text,
+  evidencia_invalida boolean not null default false
+);
+
+create index if not exists idx_post_references_post on post_references (post_id);

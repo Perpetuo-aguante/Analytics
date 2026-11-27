@@ -152,3 +152,20 @@ export type CurrentSubscriberMetric = Subscriber & {
   open_rate_6mo: number | null;
   click_rate: number | null;
 };
+
+// Fila de post_texts: el texto completo de un post (ver lib/texts.ts).
+export type PostText = {
+  post_id: string;
+  body: string;
+  word_count: number;
+  char_count: number;
+  content_hash: string;
+  term_counts: Record<string, number>;
+  // Estilometría mínima (lib/text-features.ts).
+  features: Partial<import("./text-features").TextFeatures>;
+  file_name: string | null;
+  source: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
