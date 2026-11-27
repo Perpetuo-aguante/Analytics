@@ -24,8 +24,8 @@ export default async function CompararPage() {
       <div className="mt-4">
         <PageHeader
           title="Comparar un texto nuevo"
-          description="Pega un borrador (o sube su .txt) y mira a qué textos de Perpetuo se parece por vocabulario y dónde caería en el compass, estimado a partir de esos vecinos. Es instantáneo y no se guarda nada. El análisis completo (rúbricas, afecto, dimensiones literarias) lo hace el worker: python -m perpetuo_analysis borrador archivo.txt"
-          scope={`${rows.length.toLocaleString("es")} posts analizados para comparar`}
+          description="Pega un borrador (o sube su .txt) y mira a qué textos de Perpetuo se parece por vocabulario y dónde caería en el compass, estimado a partir de esos vecinos. Es instantáneo, no usa LLM y no se guarda nada."
+          scope={`${rows.length.toLocaleString("es")} posts con lectura para comparar`}
         />
       </div>
       <CompareForm points={points} categories={categories} />

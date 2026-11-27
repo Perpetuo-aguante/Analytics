@@ -34,7 +34,7 @@ rankings, los stat tiles y la ficha de cada post.
 ## Funcionalidad
 
 - **Cargas automáticas** (martes, jueves y sábado): un agente descarga los exports de Substack y los sube a `POST /api/ingest/posts` y `POST /api/ingest/subscribers` con `INGEST_API_KEY`. Ver [`docs/ingest-api.md`](./docs/ingest-api.md).
-- **Compass editorial** (`/textos`): el agente sube el texto completo de cada post a `POST /api/ingest/texts` y un worker de Python ([`analysis/`](./analysis/README.md)) lo analiza en batch en tres capas: estilometría con spaCy (sin LLM), afecto por párrafo con arco emocional (pysentimiento + LLM) y análisis literario con LLM (Genette, Bajtín, Jakobson, Iser/Eco…), con vocabularios cerrados y evidencia textual verificada. `/textos` muestra el compass (referencial ↔ poético × impersonal ↔ subjetivo), cómo rinde cada cuadrante, el perfil por sección, temas y distribuciones; la ficha de cada post, su análisis completo. `/textos/comparar` estima dónde caería un borrador.
+- **Compass editorial** (`/textos`): el agente sube el texto completo de cada post a `POST /api/ingest/texts` y, en el mismo paso, su lectura según la guía de `GET /api/ingest/texts/guia` (`lib/compass-guide.ts`): los ejes referencial ↔ poético e impersonal ↔ subjetivo con las rúbricas del spec, y tesis, figuración, intertextualidad, lector implícito, apertura, cierre y temas. La app valida los vocabularios cerrados y que cada cita exista en el texto (`lib/compass-analysis.ts`), y calcula sin LLM una estilometría mínima para avisar cuando un score contradice los números (`lib/text-features.ts`). `/textos` muestra el compass, cómo rinde cada cuadrante, el perfil por sección, temas y distribuciones; la ficha de cada post, su lectura completa. `/textos/comparar` estima, sin LLM, dónde caería un borrador.
 - **`/subir`** (requiere cuenta de admin, ver "Acceso"): registro de las cargas automáticas (y sus errores), carga manual de un Excel/CSV con métricas por post (mapea columnas en español/inglés automáticamente) y del export de suscriptores de Substack (columnas fijas). La carga manual y la automática usan el mismo código (`lib/imports/`).
 - **`/`**: tabla ordenable por cualquier métrica (views, open rate, nuevos suscriptores, engagement, ingresos estimados) más búsqueda por título, sobre el snapshot más reciente de cada post.
 - **`/rankings`**: rankings en barras, globales y partidos por sección, por la métrica que elijas (views, open rate, nuevos suscriptores, engagement o ingresos estimados).
@@ -103,8 +103,8 @@ Corre contra `DATABASE_URL_UNPOOLED` (la conexión directa, la recomendada por N
 - `post_categories`: las secciones, editables desde `/subir`.
 - `subscribers`: identidad de cada suscriptor (email) + atributos descriptivos (tipo, plan, fechas de alta/baja, país, estado/provincia, preferencias de sección) que se actualizan en cada carga. `start_date` y `cancel_date` son las que sostienen todo el histórico de `/suscriptores/geografia`.
 - `subscriber_snapshots`: las métricas cuantitativas de actividad (aperturas, clics, views, comentarios, shares, revenue) por carga. Para no llenar la base con tres cargas por semana, después de cada carga se conservan solo las fotos de los primeros 100 días de cada suscriptor, su foto más reciente y la primera de cada mes (`lib/imports/retention-policy.ts`).
-- `post_texts`: el texto completo de cada post (uno por post; una carga nueva lo reemplaza), con su conteo de palabras, hash y su "huella léxica" (`term_counts`) para buscar textos parecidos.
-- `post_stylometry` + `stylometry_norms`, `post_paragraphs` + `post_affect`, `post_literary` + `post_themes` + `post_references`, `theme_taxonomy` y `analysis_runs`: el compass editorial y el análisis literario, que escribe solo el worker de `analysis/` (ver su README).
+- `post_texts`: el texto completo de cada post (uno por post; una carga nueva lo reemplaza), con su conteo de palabras, hash, su "huella léxica" (`term_counts`) para buscar textos parecidos y su estilometría mínima (`features`).
+- `post_compass` (ejes y dimensiones, con su evidencia), `post_themes`, `post_references` y `theme_taxonomy` (la taxonomía de temas, provisional): la lectura del compass de cada texto. `post_texts.features` guarda la estilometría mínima.
 - `ingest_runs`: registro de cada carga que llegó por la API de ingesta (exitosa o no).
 - `current_subscriber_metrics` (vista): el snapshot más reciente de cada suscriptor, con open rate (sobre correos únicos vistos, con tope de 100%) y click rate ya calculados.
 
@@ -116,7 +116,7 @@ La app habla con Postgres solo desde el servidor (`lib/db.ts`, driver `@neondata
 
 `/subir` y la corrección manual de posts piden una cuenta de **Neon Auth** (correo y contraseña). Cualquiera puede crearse una cuenta desde `/subir`, pero solo los correos listados en `ADMIN_EMAILS` pueden cargar o modificar datos; el resto ve un aviso de "sin permiso". Si `ADMIN_EMAILS` no está configurada, nadie es admin. Las cuentas viven en el esquema `neon_auth` de la misma base.
 
-Las páginas de lectura (`/`, `/rankings`, `/suscriptores`, etc.) siguen siendo públicas. La excepción es el texto completo de cada post (y su descarga en .txt): solo lo ven los admins, porque puede ser contenido de pago en Substack. El análisis (compass, afecto, dimensiones, estilometría) sí es público, y muestra citas breves como evidencia.
+Las páginas de lectura (`/`, `/rankings`, `/suscriptores`, etc.) siguen siendo públicas. La excepción es el texto completo de cada post (y su descarga en .txt): solo lo ven los admins, porque puede ser contenido de pago en Substack. La lectura del compass sí es pública, y muestra citas breves como evidencia.
 
 ## Desarrollo local
 

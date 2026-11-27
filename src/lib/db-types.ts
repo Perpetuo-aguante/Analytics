@@ -161,6 +161,8 @@ export type PostText = {
   char_count: number;
   content_hash: string;
   term_counts: Record<string, number>;
+  // Estilometría mínima (lib/text-features.ts).
+  features: Partial<import("./text-features").TextFeatures>;
   file_name: string | null;
   source: string | null;
   created_at: string;

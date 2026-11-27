@@ -1,7 +1,7 @@
 // Textos completos de los posts (tabla post_texts) y su similitud léxica.
 // Los usan la API de ingesta (app/api/ingest/texts), la ficha de cada post,
-// /textos y /textos/comparar. El análisis literario (compass, afecto,
-// dimensiones) lo escribe el worker de analysis/ y se lee en lib/compass.ts.
+// /textos y /textos/comparar. La lectura del compass la guarda
+// lib/compass-analysis.ts y se lee en lib/compass.ts.
 // Solo servidor.
 
 import { createHash } from "node:crypto";
@@ -11,6 +11,8 @@ import { deriveSlug, slugify } from "./format";
 import { similarity } from "./dedupe";
 import { DUPLICATE_SIMILARITY_THRESHOLD } from "./imports/posts";
 import { matchPostType } from "./post-types";
+import { computeFeatures } from "./text-features";
+import { PROMPT_VERSION } from "./compass-vocab";
 import type { Category } from "./categories";
 import {
   buildCorpus,
@@ -72,11 +74,17 @@ export async function resolvePost(ref: PostRef): Promise<ResolvedPost> {
   }
 
   // Último intento: el título (o el slug de la URL) más parecido.
-  const candidates = [title && slugify(title), url && deriveSlug(url, ""), slug && slugify(slug)].filter(
+  // Solo con título o URL: un slug explícito que no existe no se "adivina"
+  // (texto-de-prueba-99 no es texto-de-prueba-9).
+  const candidates = [title && slugify(title), url && deriveSlug(url, "")].filter(
     (c): c is string => Boolean(c)
   );
-  if (candidates.length === 0) return { post: null, suggestions: [] };
   const all = await query<PostIdentity>(`select ${IDENTITY_COLUMNS} from posts`);
+  if (candidates.length === 0) {
+    // Sugerencias para un slug que no existe: los más parecidos.
+    const scored = slug ? all.map((post) => ({ post, sim: similarity(slugify(slug), post.slug) })).sort((a, b) => b.sim - a.sim) : [];
+    return { post: null, suggestions: scored.slice(0, 3).map(({ post }) => ({ slug: post.slug, title: post.title })) };
+  }
   const scored = all
     .map((post) => ({ post, sim: Math.max(...candidates.map((c) => similarity(c, post.slug))) }))
     .sort((a, b) => b.sim - a.sim);
@@ -92,7 +100,14 @@ export async function resolvePost(ref: PostRef): Promise<ResolvedPost> {
 // Guardar
 // ─────────────────────────────────────────────
 
-export type SaveTextResult = { status: "creado" | "actualizado" | "sin cambios"; wordCount: number };
+export type SaveTextResult = {
+  status: "creado" | "actualizado" | "sin cambios";
+  wordCount: number;
+  hash: string;
+  // El texto tal como quedó guardado (normalizado): contra él se validan
+  // las citas de la lectura.
+  body: string;
+};
 
 export function prepareText(raw: string): { body: string; wordCount: number; hash: string } {
   const body = normalizeText(raw);
@@ -110,14 +125,14 @@ export async function savePostText(
 ): Promise<SaveTextResult> {
   const { body, wordCount, hash } = prepareText(raw);
   const existing = await queryOne<{ content_hash: string }>("select content_hash from post_texts where post_id = $1", [postId]);
-  if (existing?.content_hash === hash) return { status: "sin cambios", wordCount };
+  if (existing?.content_hash === hash) return { status: "sin cambios", wordCount, hash, body };
 
   await query(
-    `insert into post_texts (post_id, body, word_count, char_count, content_hash, term_counts, file_name, source)
-     values ($1, $2, $3, $4, $5, $6::jsonb, $7, $8)
+    `insert into post_texts (post_id, body, word_count, char_count, content_hash, term_counts, features, file_name, source)
+     values ($1, $2, $3, $4, $5, $6::jsonb, $9::jsonb, $7, $8)
      on conflict (post_id) do update set
        body = excluded.body, word_count = excluded.word_count, char_count = excluded.char_count,
-       content_hash = excluded.content_hash, term_counts = excluded.term_counts,
+       content_hash = excluded.content_hash, term_counts = excluded.term_counts, features = excluded.features,
        file_name = excluded.file_name, source = excluded.source, updated_at = now()`,
     [
       postId,
@@ -128,9 +143,10 @@ export async function savePostText(
       JSON.stringify(termCounts(body)),
       meta.fileName?.slice(0, 200) ?? null,
       meta.source?.slice(0, 200) ?? null,
+      JSON.stringify(computeFeatures(body)),
     ]
   );
-  return { status: existing ? "actualizado" : "creado", wordCount };
+  return { status: existing ? "actualizado" : "creado", wordCount, hash, body };
 }
 
 // ─────────────────────────────────────────────
@@ -148,7 +164,8 @@ export type TextStatus = {
   published_at: string | null;
   post_type: string | null;
   tiene_texto: boolean;
-  // Si el worker ya hizo el análisis literario de la versión actual del texto.
+  // Si ya tiene la lectura del compass de la versión actual del texto (y de
+  // la guía vigente).
   analizado: boolean;
   palabras: number | null;
   hash: string | null;
@@ -161,17 +178,18 @@ export function listTextStatus(): Promise<TextStatus[]> {
   return query<TextStatus>(
     `select p.slug, p.title, p.url, p.published_at, p.post_type,
             t.post_id is not null as tiene_texto,
-            coalesce(l.content_hash = t.content_hash, false) as analizado,
+            coalesce(l.content_hash = t.content_hash and l.prompt_version = $1, false) as analizado,
             t.word_count as palabras, t.content_hash as hash, t.updated_at as texto_actualizado
      from posts p
      left join post_texts t on t.post_id = p.id
-     left join post_literary l on l.post_id = p.id
-     order by p.published_at desc nulls last, p.title`
+     left join post_compass l on l.post_id = p.id
+     order by p.published_at desc nulls last, p.title`,
+    [PROMPT_VERSION]
   );
 }
 
-// Un texto del corpus: identidad del post, huella léxica y, si ya pasó por
-// el worker, su lugar en el compass. Sin el cuerpo del texto, que no hace
+// Un texto del corpus: identidad del post, huella léxica y, si ya tiene
+// lectura, su lugar en el compass. Sin el cuerpo del texto, que no hace
 // falta para comparar y pesa mucho.
 export type CorpusRow = {
   post_id: string;
@@ -192,7 +210,7 @@ export function getTextCorpus(): Promise<CorpusRow[]> {
             t.word_count, t.term_counts, l.compass_x, l.compass_y
      from post_texts t
      join posts p on p.id = t.post_id
-     left join post_literary l on l.post_id = t.post_id
+     left join post_compass l on l.post_id = t.post_id
      order by p.published_at desc nulls last`
   );
 }
@@ -254,8 +272,7 @@ export type DraftComparison = {
   keyTerms: string[];
   neighbors: SimilarText[];
   // Posición estimada en el compass: promedio de la de sus vecinos léxicos.
-  // Es una aproximación instantánea; el análisis real lo hace el worker
-  // (`python -m perpetuo_analysis borrador`).
+  // Es una aproximación instantánea y gratis (sin LLM).
   estimatedCompass: { x: number; y: number } | null;
   // Cuántos de los vecinos usados ya tenían compass.
   estimatedFrom: number;

@@ -2,16 +2,15 @@ import { NextResponse, type NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
 import { checkIngestKey, IngestError, logIngestRun } from "@/lib/ingest";
 import { listTextStatus, prepareText, resolvePost, savePostText, type PostRef } from "@/lib/texts";
+import { getStoredText, parseAnalysis, savePostAnalysis, type ParsedAnalysis, type SaveAnalysisResult } from "@/lib/compass-analysis";
 
-// Textos completos de los posts, para el agente (Grok). Ver
-// docs/ingest-api.md → "Textos".
+// Textos completos de los posts y su lectura del compass, para el agente
+// (Grok). Ver docs/ingest-api.md → "Textos y compass".
 //
-// GET  /api/ingest/texts            estado de cada post: si ya tiene texto
-// GET  /api/ingest/texts?faltan=1   solo los que todavía no tienen texto
-// POST /api/ingest/texts            sube uno o varios textos
-//
-// El agente solo sube el texto. El análisis (compass, afecto, dimensiones
-// literarias) lo hace después el worker de analysis/, en batch.
+// GET  /api/ingest/texts                    estado de cada post: texto y lectura
+// GET  /api/ingest/texts?faltan=1&limite=N  solo lo pendiente (los N más recientes)
+// GET  /api/ingest/texts/guia               la guía de lectura (rúbricas y formato)
+// POST /api/ingest/texts                    sube textos y/o su lectura (`analisis`)
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
@@ -21,9 +20,14 @@ const MAX_ITEMS = 50;
 export async function GET(request: NextRequest) {
   const denied = checkIngestKey(request);
   if (denied) return denied;
-  const onlyMissing = ["1", "true"].includes(request.nextUrl.searchParams.get("faltan") ?? "");
+  const params = request.nextUrl.searchParams;
+  const onlyMissing = ["1", "true"].includes(params.get("faltan") ?? "");
+  const limit = Number(params.get("limite"));
   const all = await listTextStatus();
-  const posts = onlyMissing ? all.filter((p) => !p.tiene_texto) : all;
+  let posts = onlyMissing ? all.filter((p) => !p.tiene_texto || !p.analizado) : all;
+  // Para ir cargando el histórico por tandas sin gastar de más: los N más
+  // recientes de lo pendiente.
+  if (Number.isInteger(limit) && limit > 0) posts = posts.slice(0, limit);
   return NextResponse.json({
     ok: true,
     total: all.length,
@@ -33,7 +37,7 @@ export async function GET(request: NextRequest) {
   });
 }
 
-type RawItem = PostRef & { texto?: unknown; archivo?: unknown };
+type RawItem = PostRef & { texto?: unknown; archivo?: unknown; analisis?: unknown };
 
 type ItemResult =
   | {
@@ -41,8 +45,13 @@ type ItemResult =
       slug: string;
       titulo: string;
       encontradoPor: string;
-      texto: "creado" | "actualizado" | "sin cambios" | "válido (prueba)";
-      palabras: number;
+      texto: "creado" | "actualizado" | "sin cambios" | "válido (prueba)" | "no enviado";
+      palabras: number | null;
+      analisis: SaveAnalysisResult["estado"] | "válida (prueba)" | "no enviada";
+      // Campos con una cita que no está en el texto, y los que hay que
+      // volver a mandar (una vez).
+      evidenciaInvalida?: string[];
+      reintentar?: string[];
     }
   | { ok: false; referencia: PostRef; error: string; sugerencias?: { slug: string; title: string }[] };
 
@@ -71,6 +80,15 @@ export async function POST(request: NextRequest) {
       const form = await request.formData();
       const file = form.get("file");
       const text = file instanceof File ? await file.text() : (form.get("texto") as string | null);
+      const analysisRaw = form.get("analisis") as string | null;
+      let analysis: unknown;
+      if (analysisRaw) {
+        try {
+          analysis = JSON.parse(analysisRaw);
+        } catch {
+          throw new IngestError("El campo `analisis` debe ser JSON.", 400);
+        }
+      }
       if (["1", "true"].includes((form.get("dryRun") as string | null) ?? "")) dryRun = true;
       items = [
         {
@@ -79,6 +97,7 @@ export async function POST(request: NextRequest) {
           title: (form.get("title") as string | null) ?? params.get("title"),
           texto: text,
           archivo: file instanceof File ? file.name : null,
+          analisis: analysis,
         },
       ];
     } else {
@@ -100,6 +119,8 @@ export async function POST(request: NextRequest) {
       fallidos: results.length - okCount,
       creados: results.filter((r) => r.ok && r.texto === "creado").length,
       actualizados: results.filter((r) => r.ok && r.texto === "actualizado").length,
+      lecturas: results.filter((r) => r.ok && (r.analisis === "guardado" || r.analisis === "actualizado")).length,
+      porReintentar: results.filter((r) => r.ok && (r.reintentar?.length ?? 0) > 0).length,
     };
     const allOk = okCount === results.length;
     await logIngestRun({
@@ -148,9 +169,12 @@ async function processItem(item: RawItem, opts: { dryRun: boolean; source: strin
     if (!ref.slug && !ref.url && !ref.title) {
       throw new Error("Falta identificar el post: manda `slug`, `url` o `title`.");
     }
-    if (typeof item.texto !== "string" || item.texto.trim() === "") throw new Error("Falta `texto` (el texto completo del post).");
-    // Validar antes de tocar la base.
-    const prepared = prepareText(item.texto);
+    const hasText = typeof item.texto === "string" && item.texto.trim() !== "";
+    if (!hasText && item.analisis == null) throw new Error("No llegó ni `texto` ni `analisis`.");
+    // Validar todo antes de tocar la base: si la lectura está mal formada,
+    // no se guarda nada de ese post.
+    const prepared = hasText ? prepareText(item.texto as string) : null;
+    const analysis: ParsedAnalysis | null = item.analisis != null ? parseAnalysis(item.analisis) : null;
 
     const resolved = await resolvePost(ref);
     if (!resolved.post) {
@@ -170,19 +194,34 @@ async function processItem(item: RawItem, opts: { dryRun: boolean; source: strin
         slug: post.slug,
         titulo: post.title,
         encontradoPor: resolved.matchedBy,
-        texto: "válido (prueba)",
-        palabras: prepared.wordCount,
+        texto: prepared ? "válido (prueba)" : "no enviado",
+        palabras: prepared?.wordCount ?? null,
+        analisis: analysis ? "válida (prueba)" : "no enviada",
       };
     }
 
-    const saved = await savePostText(post.id, item.texto, { fileName: str(item.archivo), source: opts.source });
+    const saved = hasText
+      ? await savePostText(post.id, item.texto as string, { fileName: str(item.archivo), source: opts.source })
+      : null;
+    let reading: SaveAnalysisResult | null = null;
+    if (analysis) {
+      // La lectura se valida contra el texto guardado: el que llegó ahora o,
+      // si llegó solo la lectura (un reintento), el que ya estaba.
+      const target = saved ? { body: saved.body, content_hash: saved.hash } : await getStoredText(post.id);
+      if (!target) throw new Error("Este post todavía no tiene texto: manda `texto` junto con `analisis`.");
+      reading = await savePostAnalysis(post.id, target.content_hash, target.body, analysis);
+    }
+
     return {
       ok: true,
       slug: post.slug,
       titulo: post.title,
       encontradoPor: resolved.matchedBy,
-      texto: saved.status,
-      palabras: saved.wordCount,
+      texto: saved?.status ?? "no enviado",
+      palabras: saved?.wordCount ?? null,
+      analisis: reading?.estado ?? "no enviada",
+      ...(reading && reading.invalidos.length > 0 ? { evidenciaInvalida: reading.invalidos } : {}),
+      ...(reading && reading.reintentar.length > 0 ? { reintentar: reading.reintentar } : {}),
     };
   } catch (err) {
     return { ok: false, referencia: ref, error: err instanceof Error ? err.message : String(err) };

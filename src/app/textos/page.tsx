@@ -8,7 +8,7 @@ import { TextMap, type TextMapDatum } from "@/components/text-map";
 import { getCategories, type Category } from "@/lib/categories";
 import { describeFilters, parseFilters, type FilterSearchParams, type Filters } from "@/lib/filters";
 import { matchPostCategories, matchPostType } from "@/lib/post-types";
-import { anchorAlerts, CONFIDENCE_FLOOR, countPendingAnalysis, getCompassCorpus, getNorms, type CompassRow } from "@/lib/compass";
+import { anchorAlerts, CONFIDENCE_FLOOR, countPending, getCompassCorpus, getNorms, type CompassRow } from "@/lib/compass";
 import { THEMES, VOCAB, type VocabKey } from "@/lib/compass-vocab";
 import { formatNumber, formatPercent } from "@/lib/display";
 
@@ -39,16 +39,10 @@ function distribution(rows: CompassRow[], vocab: VocabKey, get: (r: CompassRow) 
 }
 
 const DISTRIBUTIONS: { title: string; vocab: VocabKey; get: (r: CompassRow) => string | null; note?: string }[] = [
-  { title: "Narrador", vocab: "narrador", get: (r) => r.narrador, note: "Genette" },
   { title: "Tesis", vocab: "tesis", get: (r) => r.tesis },
-  { title: "Estructura argumentativa", vocab: "estructura", get: (r) => r.estructura },
   { title: "Polo figurativo", vocab: "polo_dominante", get: (r) => r.polo_dominante, note: "Jakobson" },
-  { title: "Orden temporal", vocab: "orden_temporal", get: (r) => r.orden_temporal },
   { title: "Apertura", vocab: "tipo_gancho", get: (r) => r.tipo_gancho },
   { title: "Cierre", vocab: "cierre", get: (r) => r.cierre },
-  { title: "Arco emocional", vocab: "arco", get: (r) => r.arco, note: "Reagan et al. 2016" },
-  { title: "Emoción principal", vocab: "emocion_dominante", get: (r) => r.emocion_principal, note: "la de más texto" },
-  { title: "Distancia afectiva", vocab: "distancia_afectiva", get: (r) => r.distancia_afectiva },
 ];
 
 const QUADRANTS = [
@@ -63,7 +57,7 @@ export default async function TextosPage({ searchParams }: { searchParams: Promi
   const categories = await getCategories();
   const filters = parseFilters(params, categories);
 
-  const [corpus, norms, pending] = await Promise.all([getCompassCorpus(), getNorms(), countPendingAnalysis()]);
+  const [corpus, norms, pending] = await Promise.all([getCompassCorpus(), getNorms(), countPending()]);
   const rows = corpus.filter((r) => inFilters(r, filters, categories));
 
   const points: TextMapDatum[] = [];
@@ -75,7 +69,8 @@ export default async function TextosPage({ searchParams }: { searchParams: Promi
     const alerts = anchorAlerts(row, norms);
     const weak =
       Math.min(row.compass_x_confianza, row.compass_y_confianza) < CONFIDENCE_FLOOR ||
-      row.campos_evidencia_invalida.some((c) => c === "eje_x" || c === "eje_y");
+      row.campos_evidencia_invalida.some((c) => c === "eje_x" || c === "eje_y") ||
+      row.desactualizada;
     if (weak) lowConfidence++;
     if (alerts.length > 0) alerted++;
     points.push({
@@ -86,7 +81,7 @@ export default async function TextosPage({ searchParams }: { searchParams: Promi
       x: row.compass_x / 100,
       y: row.compass_y / 100,
       faded: weak,
-      note: [weak ? "Confianza baja o evidencia inválida en un eje." : null, ...alerts].filter(Boolean).join(" ") || undefined,
+      note: [row.desactualizada ? "Lectura de una versión anterior del texto." : weak ? "Confianza baja o evidencia inválida en un eje." : null, ...alerts].filter(Boolean).join(" ") || undefined,
     });
   }
 
@@ -107,7 +102,7 @@ export default async function TextosPage({ searchParams }: { searchParams: Promi
         x: mean(members.map((m) => m.compass_x)),
         y: mean(members.map((m) => m.compass_y)),
         dificultad: mean(members.map((m) => m.dificultad)),
-        valencia: mean(members.map((m) => m.valencia_media)),
+        gancho: mean(members.map((m) => m.fuerza_gancho)),
       };
     })
     .filter((p) => p.count > 0);
@@ -116,7 +111,7 @@ export default async function TextosPage({ searchParams }: { searchParams: Promi
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">
       <PageHeader
         title="Compass editorial"
-        description="Cada post en dos ejes: referencial ↔ poético (¿apunta al mundo o a su propio lenguaje?) e impersonal ↔ subjetivo (¿cuánto está construido desde el yo que enuncia?). Debajo, su perfil literario y afectivo, y cómo rinde cada zona del plano."
+        description="Cada post en dos ejes: referencial ↔ poético (¿apunta al mundo o a su propio lenguaje?) e impersonal ↔ subjetivo (¿cuánto está construido desde el yo que enuncia?). Debajo, cómo rinde cada zona del plano y el perfil literario del recorte."
         scope={describeFilters(filters)}
       />
 
@@ -127,11 +122,11 @@ export default async function TextosPage({ searchParams }: { searchParams: Promi
       <div className="rise rise-1">
         <StatTiles
           tiles={[
-            { label: "Posts analizados", value: formatNumber(rows.length), hint: `${formatNumber(pending.texts)} textos cargados en total` },
+            { label: "Posts con lectura", value: formatNumber(rows.length), hint: `${formatNumber(pending.texts)} textos cargados en total` },
             {
               label: "Pendientes de análisis",
               value: formatNumber(pending.pending),
-              hint: "textos nuevos o cambiados; los procesa el worker",
+              hint: "sin lectura, o con lectura de una versión anterior",
             },
             { label: "Confianza baja", value: formatNumber(lowConfidence), hint: "puntos atenuados en el compass" },
             { label: "Alertas de anclaje", value: formatNumber(alerted), hint: "el LLM contradice la estilometría" },
@@ -141,8 +136,8 @@ export default async function TextosPage({ searchParams }: { searchParams: Promi
 
       {corpus.length === 0 ? (
         <p className="panel p-8 text-sm text-ink-muted">
-          Todavía no hay posts analizados. El agente sube los textos a <code>POST /api/ingest/texts</code> y el worker
-          (<code>analysis/</code>) los analiza en batch.
+          Todavía no hay posts con lectura. El agente sube cada texto con su lectura a{" "}
+          <code>POST /api/ingest/texts</code>, siguiendo la guía de <code>GET /api/ingest/texts/guia</code>.
         </p>
       ) : (
         <div className="space-y-6">
@@ -213,7 +208,7 @@ export default async function TextosPage({ searchParams }: { searchParams: Promi
           <section className="panel rise rise-3 p-5 sm:p-6">
             <h2 className="font-display text-lg font-semibold">Perfil de cada sección</h2>
             <p className="mb-5 mt-1 text-sm text-ink-secondary">
-              Promedios de los posts analizados de cada sección. Valencia de −1 a +1 (baseline de pysentimiento).
+              Promedios de los posts con lectura de cada sección. Dificultad (lector implícito) y fuerza del gancho, de 1 a 5.
             </p>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[520px] border-collapse text-sm">
@@ -224,7 +219,7 @@ export default async function TextosPage({ searchParams }: { searchParams: Promi
                     <th className="px-2 py-2 text-right font-medium">Poético (X)</th>
                     <th className="px-2 py-2 text-right font-medium">Subjetivo (Y)</th>
                     <th className="px-2 py-2 text-right font-medium">Dificultad</th>
-                    <th className="px-2 py-2 text-right font-medium">Valencia</th>
+                    <th className="px-2 py-2 text-right font-medium">Fuerza del gancho</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -238,7 +233,7 @@ export default async function TextosPage({ searchParams }: { searchParams: Promi
                       <td className="tnum px-2 py-2 text-right">{p.x == null ? "—" : Math.round(p.x)}</td>
                       <td className="tnum px-2 py-2 text-right">{p.y == null ? "—" : Math.round(p.y)}</td>
                       <td className="tnum px-2 py-2 text-right">{p.dificultad == null ? "—" : p.dificultad.toFixed(1)}</td>
-                      <td className="tnum px-2 py-2 text-right">{p.valencia == null ? "—" : signed(p.valencia)}</td>
+                      <td className="tnum px-2 py-2 text-right">{p.gancho == null ? "—" : p.gancho.toFixed(1)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -256,6 +251,30 @@ export default async function TextosPage({ searchParams }: { searchParams: Promi
           </section>
 
           <section className="rise rise-4 grid gap-6 md:grid-cols-2">
+            <div className="panel p-5">
+              <h2 className="font-display text-base font-semibold">
+                Dificultad<span className="ml-2 text-xs font-normal text-ink-muted">lector implícito (Iser, Eco), 1 a 5</span>
+              </h2>
+              <div className="mt-4">
+                <BarChart
+                  data={[1, 2, 3, 4, 5]
+                    .map((n) => ({ label: String(n), value: rows.filter((r) => r.dificultad === n).length }))
+                    .filter((d) => d.value > 0)}
+                />
+              </div>
+            </div>
+            <div className="panel p-5">
+              <h2 className="font-display text-base font-semibold">
+                Tradición de las referencias<span className="ml-2 text-xs font-normal text-ink-muted">intertextualidad</span>
+              </h2>
+              <div className="mt-4">
+                <BarChart
+                  data={VOCAB.tradicion
+                    .map((t) => ({ label: t, value: rows.reduce((acc, r) => acc + r.tradiciones.filter((x) => x === t).length, 0) }))
+                    .filter((d) => d.value > 0)}
+                />
+              </div>
+            </div>
             {DISTRIBUTIONS.map((d) => (
               <div key={d.title} className="panel p-5">
                 <h2 className="font-display text-base font-semibold">
@@ -274,6 +293,3 @@ export default async function TextosPage({ searchParams }: { searchParams: Promi
   );
 }
 
-function signed(v: number): string {
-  return v > 0 ? `+${v.toFixed(2)}` : v.toFixed(2);
-}
